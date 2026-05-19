@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="/public/android-chrome-512x512.png" width="80" alt="Endereye logo" />
+  <img src="/assets/logo.png" width="80" alt="MCSR Ranked logo" />
 
 # endereye
 
