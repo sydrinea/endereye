@@ -1,6 +1,6 @@
 import type { PlayerOdds } from './odds'
 import type { SimPlayer } from './simulation'
-import { createTournamentContext, EventContext, EventPlayer } from '../context/event'
+import { createEventContext, EventContext, EventPlayer } from '../context/event'
 import { computePlayerOdds } from './odds'
 import {
   applyElimination,
@@ -11,7 +11,7 @@ import {
 import { BracketEntry, EventKind } from '../api/types'
 import { ELIMINATION_SCHEDULE } from './config'
 
-export interface TournamentPageData {
+export interface EventData {
   readonly kind: EventKind
   readonly season: number
   readonly players: EventPlayer[]
@@ -23,12 +23,12 @@ export interface TournamentPageData {
 
 export type PlayerView = EventPlayer & BracketEntry & PlayerOdds
 
-export async function createTournamentPageData(
+export async function createEventData(
   type: EventKind,
   season: number,
   opts: { skipOdds?: boolean } = {},
-): Promise<TournamentPageData> {
-  const ctx = await createTournamentContext(type, season)
+): Promise<EventData> {
+  const ctx = await createEventContext(type, season)
   const playerOdds = opts.skipOdds ? ({} as Record<string, PlayerOdds>) : computePlayerOdds(ctx)
   return {
     kind: ctx.kind,
@@ -48,10 +48,7 @@ export function calculatePoints(b: BracketEntry, seed: number): number {
   )
 }
 
-export function computeHistoricalData(
-  data: TournamentPageData,
-  viewSeed: number,
-): TournamentPageData {
+export function computeHistoricalData(data: EventData, viewSeed: number): EventData {
   const bracketMap = new Map(data.brackets.map((b) => [b.uuid, b]))
   const playerLookup = new Map(data.players.map((p) => [p.uuid, p]))
 
@@ -120,7 +117,7 @@ export function computeHistoricalData(
   }
 }
 
-export function buildPlayerViews(data: TournamentPageData): PlayerView[] {
+export function buildPlayerViews(data: EventData): PlayerView[] {
   const playerLookup = new Map(data.players.map((p) => [p.uuid, p]))
   return data.brackets
     .sort((a, b) => a.rank - b.rank)
@@ -155,7 +152,7 @@ export function buildPlayerViews(data: TournamentPageData): PlayerView[] {
 }
 
 export function runHeatmapSimulation(
-  data: TournamentPageData,
+  data: EventData,
   currentRound: number,
   iterations = 10000,
 ): Record<string, Record<number, number>> {

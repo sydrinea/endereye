@@ -28,10 +28,7 @@ export interface EventContext {
   readonly currentRound: number
 }
 
-export async function createTournamentContext(
-  kind: EventKind,
-  season: number,
-): Promise<EventContext> {
+export async function createEventContext(kind: EventKind, season: number): Promise<EventContext> {
   const raw = await fetchEvent(kind, season)
   const players = await enrichUsers(raw, kind, season)
   return {

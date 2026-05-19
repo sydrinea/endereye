@@ -1,7 +1,7 @@
 import { defineCommand, runMain } from 'citty'
 import { log } from './logger'
 import {
-  createTournamentPageData,
+  createEventData,
   computeHistoricalData,
   runHeatmapSimulation,
   buildPlayerViews,
@@ -49,8 +49,8 @@ const main = defineCommand({
 
     log.section(`S${season} ${kind.toUpperCase()} — After Seed ${afterSeed}`)
 
-    log.start('Fetching tournament data...')
-    const data = await createTournamentPageData(kind, season)
+    log.start('Fetching event data...')
+    const data = await createEventData(kind, season)
 
     log.start(`Computing historical state at seed ${afterSeed}...`)
     const state = computeHistoricalData(data, afterSeed)

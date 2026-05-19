@@ -1,19 +1,19 @@
-// tests/backtest.test.ts
 import fs from 'node:fs'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import {
   computeHistoricalData,
   calculatePoints,
-  createTournamentPageData,
-  TournamentPageData,
+  createEventData,
+  EventData,
 } from '../src/core/context'
 import type { EventKind } from '../src/api/types.ts'
-import { dataTable, delta, pct, rocAuc } from './utils.ts'
+import { dataTable, delta, pct, rocAuc } from './utils'
+import process from 'node:process'
 
 const SEASONS = [7, 8, 9, 10]
 const KINDS: EventKind[] = ['lcq', 'mss']
-const CACHE_DIR = path.join(process.cwd(), 'archive', 'tournaments')
+const CACHE_DIR = path.join(process.cwd(), 'archive', 'events')
 const ELITE_THRESHOLD = 1900
 
 // ── Accumulators ──────────────────────────────────────────────────────────────
@@ -48,28 +48,31 @@ function cachePath(kind: EventKind, season: number): string {
   return path.join(CACHE_DIR, `${kind}_s${season}.json`)
 }
 
-async function loadCached(kind: EventKind, season: number): Promise<TournamentPageData> {
+async function loadCached(kind: EventKind, season: number): Promise<EventData> {
   const file = cachePath(kind, season)
-  if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf-8')) as TournamentPageData
+  if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf-8')) as EventData
 
   // fetch and cache for future runs
-  const data = await createTournamentPageData(kind, season)
+  const data = await createEventData(kind, season)
   fs.mkdirSync(CACHE_DIR, { recursive: true })
   fs.writeFileSync(file, JSON.stringify(data))
   return data
 }
 
-// ── Load all tournaments ──────────────────────────────────────────────────────
-const tournaments: { kind: EventKind; season: number; data: TournamentPageData }[] = []
-for (const kind of KINDS) {
-  for (const season of SEASONS) {
-    tournaments.push({ kind, season, data: await loadCached(kind, season) })
+// ── Load all events ──────────────────────────────────────────────────────
+const loadEvents = async () => {
+  const events: { kind: EventKind; season: number; data: EventData }[] = []
+  for (const kind of KINDS) {
+    for (const season of SEASONS) {
+      events.push({ kind, season, data: await loadCached(kind, season) })
+    }
   }
+  return events
 }
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
-describe('LCQ/MSS Backtest', () => {
-  for (const { kind, season, data } of tournaments) {
+describe('LCQ/MSS Backtest', async () => {
+  for (const { kind, season, data } of await loadEvents()) {
     describe(`${kind.toUpperCase()} S${season}`, () => {
       const finalState = computeHistoricalData(data, 10)
       const finalTruthMap = new Map(finalState.brackets.map((b) => [b.uuid, b]))
