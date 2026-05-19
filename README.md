@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="/assets/logo.png" width="80" alt="MCSR Ranked logo" />
+  <img src="/packages/core/assets/logo.png" width="80" alt="MCSR Ranked logo" />
 
 # endereye
 
