@@ -1,44 +1,23 @@
 import type { PlayerOdds } from './odds'
-import type { SimPlayer } from './simulation'
 import { createEventContext, EventContext, EventPlayer } from '../context/event'
 import { computePlayerOdds } from './odds'
-import {
-  applyElimination,
-  defaultSimPlayer,
-  makeSimPlayer,
-  runFullHeatmapSimulation,
-} from './simulation'
+import { applyElimination, runFullHeatmapSimulation, toSimPlayer } from './simulation'
 import { BracketEntry, EventKind } from '../api/types'
 import { ELIMINATION_SCHEDULE } from './config'
 
-export interface EventData {
-  readonly kind: EventKind
-  readonly season: number
-  readonly players: EventPlayer[]
-  readonly brackets: BracketEntry[]
-  readonly matches: number[]
-  readonly currentRound: number
+export interface EventData extends EventContext {
   readonly playerOdds: Record<string, PlayerOdds>
 }
 
 export type PlayerView = EventPlayer & BracketEntry & PlayerOdds
 
 export async function createEventData(
-  type: EventKind,
+  kind: EventKind,
   season: number,
   opts: { skipOdds?: boolean } = {},
 ): Promise<EventData> {
-  const ctx = await createEventContext(type, season)
-  const playerOdds = opts.skipOdds ? ({} as Record<string, PlayerOdds>) : computePlayerOdds(ctx)
-  return {
-    kind: ctx.kind,
-    season: ctx.season,
-    players: ctx.players,
-    brackets: ctx.brackets,
-    matches: ctx.matches,
-    currentRound: ctx.currentRound,
-    playerOdds,
-  }
+  const ctx = await createEventContext(kind, season)
+  return { ...ctx, playerOdds: opts.skipOdds ? {} : computePlayerOdds(ctx) }
 }
 
 export function calculatePoints(b: BracketEntry, seed: number): number {
@@ -56,14 +35,12 @@ export function computeHistoricalData(data: EventData, viewSeed: number): EventD
 
   for (const cut of ELIMINATION_SCHEDULE) {
     if (cut.afterSeed > viewSeed) break
-    const playersAtCut: SimPlayer[] = [...surviving].map((uuid) => {
+    const simPlayers = [...surviving].map((uuid) => {
       const p = playerLookup.get(uuid)
-      const b = bracketMap.get(uuid)!
-      const point = calculatePoints(b, cut.afterSeed)
-      return p ? makeSimPlayer(p, point) : defaultSimPlayer(uuid, point)
+      if (!p) throw new Error(`Player ${uuid} missing from players list`)
+      return toSimPlayer(p, calculatePoints(bracketMap.get(uuid)!, cut.afterSeed))
     })
-    const survivors = applyElimination(playersAtCut, cut)
-    surviving = new Set(survivors.map((p) => p.uuid))
+    surviving = new Set(applyElimination(simPlayers, cut).map((p) => p.uuid))
   }
 
   const modified = data.brackets.map((b) => ({
@@ -76,45 +53,20 @@ export function computeHistoricalData(data: EventData, viewSeed: number): EventD
     prevRank: b.rank,
   }))
 
-  const alive = [...modified]
-    .filter((b) => !b.eliminated)
-    .sort((a, b) => {
-      if (b.point !== a.point) return b.point - a.point
-      return a.uuid.localeCompare(b.uuid)
-    })
-  const dead = [...modified]
-    .filter((b) => b.eliminated)
-    .sort((a, b) => {
-      if (b.point !== a.point) return b.point - a.point
-      return a.uuid.localeCompare(b.uuid)
-    })
+  const sorted = [...modified].sort((a, b) =>
+    b.point !== a.point ? b.point - a.point : a.uuid.localeCompare(b.uuid),
+  )
 
-  const rankMap = new Map<string, number>()
   let rank = 1
-  for (let i = 0; i < alive.length; i++) {
-    if (i > 0 && alive[i].point < alive[i - 1].point) rank = i + 1
-    rankMap.set(alive[i].uuid, rank)
-  }
-  let elimRank = alive.length + 1
-  for (const b of dead) rankMap.set(b.uuid, elimRank++)
-
-  const newBrackets = modified.map((b) => ({ ...b, rank: rankMap.get(b.uuid) ?? b.rank }))
-
-  const historicalCtx: EventContext = {
-    kind: data.kind,
-    season: data.season,
-    players: data.players,
-    brackets: newBrackets,
-    matches: data.matches,
-    currentRound: viewSeed + 1,
+  const rankMap = new Map<string, number>()
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i].point < sorted[i - 1].point) rank = i + 1
+    rankMap.set(sorted[i].uuid, rank)
   }
 
-  return {
-    ...data,
-    brackets: newBrackets,
-    currentRound: viewSeed + 1,
-    playerOdds: computePlayerOdds(historicalCtx),
-  }
+  const newBrackets = modified.map((b) => ({ ...b, rank: rankMap.get(b.uuid)! }))
+  const ctx: EventContext = { ...data, brackets: newBrackets, currentRound: viewSeed + 1 }
+  return { ...ctx, playerOdds: computePlayerOdds(ctx) }
 }
 
 export function buildPlayerViews(data: EventData): PlayerView[] {
@@ -122,31 +74,10 @@ export function buildPlayerViews(data: EventData): PlayerView[] {
   return data.brackets
     .sort((a, b) => a.rank - b.rank)
     .map((b) => {
-      const player: EventPlayer = playerLookup.get(b.uuid) ?? {
-        uuid: b.uuid,
-        nickname: b.uuid,
-        country: null,
-        eloRate: null,
-        eloRank: null,
-        bestTimeMs: 0,
-        avgTimeMs: 0,
-        wins: 0,
-        losses: 0,
-        playedMatches: 0,
-        forfeits: 0,
-      }
-      const odds: PlayerOdds = data.playerOdds[b.uuid] ?? {
-        uuid: b.uuid,
-        winProbability: 0,
-        survivalProbability: 0,
-        canStillWin: false,
-        isSafeAtNextCut: false,
-        clinchScore: null,
-        clinchPlace: null,
-        cutDelta: 0,
-        status: 'eliminated' as const,
-        power: 0,
-      }
+      const player = playerLookup.get(b.uuid)
+      if (!player) throw new Error(`Player ${b.uuid} not found in players list`)
+      const odds = data.playerOdds[b.uuid]
+      if (!odds) throw new Error(`No odds computed for player ${b.uuid}`)
       return { ...player, ...b, ...odds } as PlayerView
     })
 }
@@ -157,17 +88,12 @@ export function runHeatmapSimulation(
   iterations = 10000,
 ): Record<string, Record<number, number>> {
   const playerLookup = new Map(data.players.map((p) => [p.uuid, p]))
-  const alivePlayers: SimPlayer[] = data.brackets
+  const alivePlayers = data.brackets
     .filter((b) => !b.eliminated)
     .map((b) => {
       const p = playerLookup.get(b.uuid)
-      return p ? makeSimPlayer(p, b.point) : defaultSimPlayer(b.uuid, b.point)
+      if (!p) throw new Error(`Player ${b.uuid} not found in players list`)
+      return toSimPlayer(p, b.point)
     })
-  return runFullHeatmapSimulation(
-    alivePlayers,
-    currentRound,
-    ELIMINATION_SCHEDULE,
-    data.kind,
-    iterations,
-  )
+  return runFullHeatmapSimulation(alivePlayers, currentRound, ELIMINATION_SCHEDULE, iterations)
 }
