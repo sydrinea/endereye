@@ -64,17 +64,6 @@ const main = defineCommand({
 
     log.success(`Simulation complete — ${alive.length} players surviving`)
 
-    // print summary table to console
-    for (const p of alive) {
-      const odds = state.playerOdds[p.uuid]
-      if (odds) {
-        log.metric(
-          p.nickname.padEnd(20),
-          `${(odds.winProbability * 100).toFixed(1)}% win  ${(odds.survivalProbability * 100).toFixed(1)}% survive  [${odds.status}]`,
-        )
-      }
-    }
-
     log.start('Rendering image...')
     const png = await renderSurvivalHeatmap({
       season,
