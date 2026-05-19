@@ -1,0 +1,175 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-dark-green: hsla(188.9, 52.9%, 10%);
+  --color-accent: #6ce03c;
+
+  /* Status danger scale — foreground (text / badge fill) */
+  --color-safe:        #4ade80;
+  --color-near-safe:   #a3e635;
+  --color-coin-flip:   #facc15;
+  --color-at-risk:     #fb923c;
+  --color-must-clutch: #f87171;
+  --color-qualified:   #38bdf8;
+
+  /* Status danger scale — background tints (table cells / row highlights) */
+  --color-safe-bg:        rgba(74, 222, 128, 0.08);
+  --color-near-safe-bg:   rgba(163, 230, 53, 0.08);
+  --color-coin-flip-bg:   rgba(250, 204, 21, 0.08);
+  --color-at-risk-bg:     rgba(251, 146, 60, 0.08);
+  --color-must-clutch-bg: rgba(248, 113, 113, 0.08);
+  --color-qualified-bg:   rgba(56, 189, 248, 0.10);
+}
+
+@layer utilities {
+  .shadow-accent-glow {
+    box-shadow: 0 0 30px rgba(108, 224, 60, 0.12);
+  }
+  .shadow-accent-glow-sm {
+    box-shadow: 0 0 8px rgba(108, 224, 60, 0.3);
+  }
+  .shadow-accent-glow-md {
+    box-shadow: 0 0 12px rgba(108, 224, 60, 0.6);
+  }
+}
+
+:root {
+  --header-height: 4rem;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@font-face {
+  font-family: 'MathNumbers';
+  src: local('Geist Mono'), local('Menlo'), local('monospace');
+  unicode-range: U+0030-0039, U+002E, U+0025;
+}
+
+html,
+body {
+  background-color: rgba(24 24 27);
+  color: rgb(212 212 216);
+  font-family: 'MathNumbers', var(--font-raleway), system-ui, sans-serif;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-minecraft), system-ui, sans-serif;
+  font-weight: 400;
+}
+.text-gold {
+  background-image: linear-gradient(to left, #f59e0b, #fef08a);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.text-silver {
+  background-image: linear-gradient(to left, #cbd5e1, #dbeafe);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.text-bronze {
+  background-image: linear-gradient(to left, #e27852, #fdbda6);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position-x: 0%;
+  }
+  to {
+    background-position-x: -200%;
+  }
+}
+
+.animate-gradient {
+  animation: gradient-shift 4s linear infinite;
+}
+
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2371717a' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem !important;
+}
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.8s ease-out forwards;
+}
+
+.animate-fade-out {
+  animation: fade-out 0.4s ease-in forwards;
+}
+
+.row-card {
+  border: 1px solid color-mix(in srgb, var(--accent, #3f3f46) 30%, transparent);
+  background-color: color-mix(in srgb, var(--accent, transparent) 6%, rgb(9 9 11 / 0.6));
+  transition: border-color 150ms, background-color 150ms;
+}
+.row-card:hover {
+  border-color: color-mix(in srgb, var(--accent, #3f3f46) 50%, transparent);
+  background-color: color-mix(in srgb, var(--accent, transparent) 10%, rgb(9 9 11 / 0.6));
+}
+
+@utility font-sans {
+  font-family: var(--font-raleway), system-ui, sans-serif;
+}
+
+@utility font-display {
+  font-family: var(--font-minecraft), sans-serif;
+}
+
+@utility font-mono {
+  font-family: var(--font-geist-mono), monospace;
+}
+
+@utility font-serif {
+  font-family: var(--font-lora), Georgia, serif;
+}
+
