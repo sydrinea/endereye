@@ -1,2 +1,8 @@
+# NPM
 node_modules
+
+# TypeScript
 dist
+
+# API caching
+archive

@@ -9,7 +9,8 @@
     "start": "node dist/cli.js",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "test": "vitest"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [],
   "author": "",
