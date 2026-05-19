@@ -1,0 +1,36 @@
+{
+  "name": "@endereye/core",
+  "version": "0.0.1",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "react": "^19.2.6",
+    "satori": "^0.10.14",
+    "sharp": "^0.34.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.9.0",
+    "@types/react": "^19.2.14",
+    "@types/sharp": "^0.31.1",
+    "eslint": "^10.4.0",
+    "prettier": "^3.8.3",
+    "tsx": "^4.22.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.4",
+    "vitest": "^4.1.6"
+  }
+}

@@ -1,6 +1,9 @@
 # NPM
 node_modules
 
+# Turbo
+.turbo
+
 # TypeScript
 dist
 

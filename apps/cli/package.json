@@ -1,0 +1,21 @@
+{
+  "name": "@endereye/cli",
+  "version": "0.0.1",
+  "type": "commonjs",
+  "bin": {
+    "endereye": "dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@endereye/core": "*",
+    "citty": "^0.1.6",
+    "consola": "^3.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.0",
+    "typescript": "^6.0.3"
+  }
+}

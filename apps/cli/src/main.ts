@@ -1,14 +1,14 @@
-import { defineCommand, runMain } from 'citty'
-import { log } from './logger'
 import {
   createEventData,
   computeHistoricalData,
-  runHeatmapSimulation,
   buildPlayerViews,
-} from './core/context'
-import type { EventKind } from './api/types.ts'
-import { renderSurvivalHeatmap } from './image/render'
-import { copyPngToClipboard } from './clipboard'
+  runHeatmapSimulation,
+  renderSurvivalHeatmap,
+  copyPngToClipboard,
+  type EventKind,
+} from '@endereye/core'
+import { defineCommand, runMain } from 'citty'
+import { log } from './logger'
 
 const main = defineCommand({
   meta: {

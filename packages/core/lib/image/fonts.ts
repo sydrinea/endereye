@@ -2,7 +2,7 @@ import type { SatoriOptions } from 'satori'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const fontDir = join(process.cwd(), 'assets', 'fonts')
+const fontDir = join(__dirname, '../../assets/fonts')
 
 export const imageFonts: SatoriOptions['fonts'] = [
   {

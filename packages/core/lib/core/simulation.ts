@@ -35,6 +35,20 @@ const DEFAULT_LOBBY_STATS: LobbyStats = {
   meanGap: 150000,
 }
 
+export const EMPTY_PLAYER: EventPlayer = {
+  uuid: '',
+  nickname: '',
+  country: null,
+  eloRate: null,
+  eloRank: null,
+  bestTimeMs: 0,
+  avgTimeMs: 0,
+  wins: 0,
+  losses: 0,
+  playedMatches: 0,
+  forfeits: 0,
+}
+
 function mean(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length
 }

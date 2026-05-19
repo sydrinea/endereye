@@ -1,0 +1,9 @@
+{
+  "name": "@endereye/web",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "echo 'web not yet implemented' && exit 0",
+    "dev": "echo 'web not yet implemented'"
+  }
+}

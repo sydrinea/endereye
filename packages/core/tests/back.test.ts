@@ -6,8 +6,8 @@ import {
   calculatePoints,
   createEventData,
   EventData,
-} from '../src/core/context'
-import type { EventKind } from '../src/api/types.ts'
+} from '../lib/core/context'
+import type { EventKind } from '../lib/api/types'
 import { dataTable, delta, pct, rocAuc } from './utils'
 import process from 'node:process'
 
