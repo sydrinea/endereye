@@ -25,9 +25,10 @@ export function createEventDataFromParts(
   players: EventPlayer[],
   kind: EventKind,
   season: number,
+  opts: { skipOdds?: boolean } = {},
 ): EventData {
   const ctx: EventContext = { kind, season, players, brackets: event.brackets, matches: event.matches, currentRound: event.currentRound }
-  return { ...ctx, playerOdds: computePlayerOdds(ctx) }
+  return { ...ctx, playerOdds: opts.skipOdds ? {} : computePlayerOdds(ctx) }
 }
 
 export function calculatePoints(b: BracketEntry, seed: number): number {

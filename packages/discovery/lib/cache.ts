@@ -15,12 +15,16 @@ const CACHE: Partial<Record<string, { event: typeof eventJson; players: EventPla
   'lcq:10': { event: eventJson, players: playersJson as EventPlayer[] },
 }
 
-export async function loadEventData(kind: EventKind, season: number): Promise<EventData> {
+export async function loadEventData(
+  kind: EventKind,
+  season: number,
+  opts: { skipOdds?: boolean } = {},
+): Promise<EventData> {
   const cached = CACHE[`${kind}:${season}`]
   if (cached) {
-    return createEventDataFromParts(cached.event, cached.players, kind, season)
+    return createEventDataFromParts(cached.event, cached.players, kind, season, opts)
   }
-  return createEventData(kind, season)
+  return createEventData(kind, season, opts)
 }
 
 export async function seedPlayerCache(kind: EventKind, season: number): Promise<void> {
