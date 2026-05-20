@@ -111,8 +111,10 @@ export function DashboardClient({
               ? 4
               : undefined
 
-  const aboveCut = cutKeep != null ? rows.slice(0, cutKeep) : rows
-  const belowCut = cutKeep != null ? rows.slice(cutKeep) : []
+  const aboveCut =
+    nextCut === 3 ? rows.filter((r) => r.pts > 0) : cutKeep != null ? rows.slice(0, cutKeep) : rows
+  const belowCut =
+    nextCut === 3 ? rows.filter((r) => r.pts === 0) : cutKeep != null ? rows.slice(cutKeep) : []
 
   const counts = rows.reduce(
     (acc, r) => {

@@ -14,7 +14,7 @@ export interface EventConfig {
 export const EVENTS: EventConfig[] = [
   {
     slug: 'lcq-s10',
-    label: 'S10 LCQ',
+    label: 'Season 10 LCQ',
     kind: 'lcq',
     season: 10,
     startDate: new Date('2026-05-02'),
@@ -26,10 +26,10 @@ export const EVENTS: EventConfig[] = [
     label: 'MCSR World Championships LCQ',
     kind: 'lcq',
     season: 11,
-    startDate: new Date('2026-05-24T15:00:00Z'), // 11am EDT
+    startDate: new Date('2026-05-24T15:00:00Z'),
     path: '/special/2026/worlds',
     cacheKey: 'lcq:2026.worlds',
-    matchBoundsAfter: 0, // set ~1h before event via scripts/get-latest-match-id.ts
+    matchBoundsAfter: 10321557, // set ~1h before event via scripts/get-latest-match-id.ts
     isSpecial: true,
     qualifyCount: 2,
   },

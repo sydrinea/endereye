@@ -1,4 +1,4 @@
-import Image from 'next/image'
+import Ranked from '@/components/icons/Ranked'
 import { Countdown } from './Countdown'
 import { PastEventCard } from './PastEventCard'
 import type { EventConfig } from '../events.config'
@@ -19,14 +19,7 @@ export function HeroSection({ event, pastEvents }: Props) {
   return (
     <main className="min-h-[calc(100vh-4rem)] flex flex-col">
       <section className="flex-1 flex flex-col items-center justify-center gap-8 px-6 text-center">
-        <Image
-          src="/android-chrome-512x512.png"
-          alt="endereye"
-          width={96}
-          height={96}
-          priority
-          quality={100}
-        />
+        <Ranked size={128} />
         <div className="flex flex-col items-center gap-2">
           <h1 className="font-display text-4xl lg:text-6xl text-zinc-100">{event.label}</h1>
           <p className="text-zinc-500">{dateLabel} · 11am ET</p>
