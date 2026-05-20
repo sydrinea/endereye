@@ -21,7 +21,24 @@ export function buildEvent(seedMatches: Match[], bonusMap: Map<string, number>):
     field.map((uuid) => [uuid, []]),
   )
 
-  let prevRanks = new Map<string, number>(field.map((uuid) => [uuid, 1]))
+  // Compute initial (pre-event) ranks from bonus desc, eloRate desc as tiebreaker
+  const playerEloMap = new Map(sorted[0].players.map((p) => [p.uuid, p.eloRate ?? 0]))
+  const initialSorted = [...field].sort((a, b) => {
+    const ba = bonusMap.get(a) ?? 0
+    const bb = bonusMap.get(b) ?? 0
+    if (bb !== ba) return bb - ba
+    return (playerEloMap.get(b) ?? 0) - (playerEloMap.get(a) ?? 0)
+  })
+  const initialRankMap = new Map<string, number>()
+  let ir = 1
+  for (let i = 0; i < initialSorted.length; i++) {
+    if (i > 0 && (bonusMap.get(initialSorted[i]) ?? 0) < (bonusMap.get(initialSorted[i - 1]) ?? 0)) ir = i + 1
+    initialRankMap.set(initialSorted[i], ir)
+  }
+
+  const ranksHistory = new Map<string, number[]>(
+    field.map((uuid) => [uuid, [initialRankMap.get(uuid) ?? field.length]]),
+  )
 
   for (let s = 0; s < sorted.length; s++) {
     const match = sorted[s]
@@ -83,15 +100,14 @@ export function buildEvent(seedMatches: Match[], bonusMap: Map<string, number>):
       }
     }
 
-    const nextRanks = new Map(prevRanks)
-    for (const [uuid, r] of currentRanks) nextRanks.set(uuid, r)
-    prevRanks = nextRanks
+    for (const uuid of field) {
+      ranksHistory.get(uuid)!.push(currentRanks.get(uuid) ?? field.length)
+    }
   }
 
   const brackets: BracketEntry[] = field.map((uuid) => ({
     uuid,
-    rank: prevRanks.get(uuid) ?? field.length,
-    prevRank: prevRanks.get(uuid) ?? field.length,
+    ranks: ranksHistory.get(uuid) ?? [],
     point: points.get(uuid) ?? 0,
     bonus: bonusMap.get(uuid) ?? 0,
     eliminated: cutEliminated.has(uuid),
@@ -104,6 +120,27 @@ export function buildEvent(seedMatches: Match[], bonusMap: Map<string, number>):
     brackets,
     players: sorted[0].players,
   }
+}
+
+export function computeBonusMapForPlayers(
+  field: Set<string>,
+  leaderboard: PhaseLeaderboard,
+): Map<string, number> {
+  const sorted = [...leaderboard.users]
+    .sort((a, b) => {
+      if (b.predPhasePoint !== a.predPhasePoint) return b.predPhasePoint - a.predPhasePoint
+      return (a.eloRank ?? Infinity) - (b.eloRank ?? Infinity)
+    })
+    .filter((u) => field.has(u.uuid))
+
+  const cutoffPoints = sorted[sorted.length - 1]?.seasonResult.phasePoint ?? 0
+
+  return new Map(
+    sorted.map((u) => [
+      u.uuid,
+      Math.max(0, Math.floor((u.seasonResult.phasePoint - cutoffPoints) / 10)),
+    ]),
+  )
 }
 
 export function computeBonusMap(

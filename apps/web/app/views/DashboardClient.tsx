@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { use, useState } from 'react'
-import { computeHistoricalData, buildPlayerViews } from '@endereye/core'
-import type { PlayerView, EventData } from '@endereye/core'
+import { buildPlayerViews, computeHistoricalData, computePlayerOdds } from '@endereye/core'
+import type { PlayerView, EventContext } from '@endereye/core'
 import { DashboardHeader, CutBanner, Surface } from '@/components/layout'
 import { Table } from '@/components/ui'
 import { StandingsRow } from './StandingsRow'
@@ -56,6 +56,12 @@ function toRowData(view: PlayerView): StandingsRowData {
   }
 }
 
+function computeViews(eventData: EventContext, seed: number): PlayerView[] {
+  const ctx = computeHistoricalData(eventData, seed)
+  const odds = computePlayerOdds(ctx)
+  return buildPlayerViews(ctx, odds)
+}
+
 export function DashboardClient({
   eventData,
   seed,
@@ -63,7 +69,7 @@ export function DashboardClient({
   live = true,
   backHref,
 }: {
-  eventData: EventData
+  eventData: EventContext
   seed: number
   eventLabel?: string
   live?: boolean
@@ -71,24 +77,16 @@ export function DashboardClient({
 }) {
   const [state, setState] = useState(() => ({
     seed,
-    promise: new Promise<PlayerView[]>((resolve) => {
-      setTimeout(() => {
-        const historical = computeHistoricalData(eventData, seed)
-        const views = buildPlayerViews(historical)
-        resolve(views)
-      }, 0)
-    }),
+    promise: new Promise<PlayerView[]>((resolve) =>
+      setTimeout(() => resolve(computeViews(eventData, seed)), 0),
+    ),
   }))
 
   let promise = state.promise
   if (state.seed !== seed) {
-    promise = new Promise<PlayerView[]>((resolve) => {
-      setTimeout(() => {
-        const historical = computeHistoricalData(eventData, seed)
-        const views = buildPlayerViews(historical)
-        resolve(views)
-      }, 0)
-    })
+    promise = new Promise<PlayerView[]>((resolve) =>
+      setTimeout(() => resolve(computeViews(eventData, seed)), 0),
+    )
     setState({ seed, promise })
   }
 
@@ -140,14 +138,18 @@ export function DashboardClient({
     <>
       {backHref && (
         <div className="w-full px-4 lg:px-8 pt-4">
-          <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
-            <ArrowLeft size={14} />Back
+          <Link
+            href={backHref}
+            className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            <ArrowLeft size={14} />
+            Back
           </Link>
         </div>
       )}
       <DashboardHeader
         event={eventLabel}
-        seeds={ALL_SEEDS}
+        seeds={ALL_SEEDS.slice(0, eventData.currentRound - 1)}
         currentSeed={seed}
         alive={rows.length}
         counts={counts}

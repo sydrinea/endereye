@@ -2,11 +2,10 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   createEventData,
-  createEventDataFromParts,
   computeHistoricalData,
   buildPlayerViews,
 } from '@endereye/core'
-import type { EventData, EventKind, EventPlayer, PlayerView } from '@endereye/core'
+import type { EventContext, EventKind, EventPlayer, PlayerView } from '@endereye/core'
 
 import eventJson from '../data/lcq/10.event.json'
 import playersJson from '../data/lcq/10.players.json'
@@ -18,13 +17,19 @@ const CACHE: Partial<Record<string, { event: typeof eventJson; players: EventPla
 export async function loadEventData(
   kind: EventKind,
   season: number,
-  opts: { skipOdds?: boolean } = {},
-): Promise<EventData> {
+): Promise<EventContext> {
   const cached = CACHE[`${kind}:${season}`]
   if (cached) {
-    return createEventDataFromParts(cached.event, cached.players, kind, season, opts)
+    return {
+      kind,
+      season,
+      players: cached.players,
+      brackets: cached.event.brackets,
+      matches: cached.event.matches,
+      currentRound: cached.event.currentRound,
+    }
   }
-  return createEventData(kind, season, opts)
+  return createEventData(kind, season)
 }
 
 export async function seedPlayerCache(kind: EventKind, season: number): Promise<void> {
@@ -35,4 +40,4 @@ export async function seedPlayerCache(kind: EventKind, season: number): Promise<
 }
 
 export { computeHistoricalData, buildPlayerViews }
-export type { EventData, EventKind, PlayerView }
+export type { EventContext as EventData, EventKind, PlayerView }

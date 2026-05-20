@@ -6,7 +6,7 @@ let _imageFonts: SatoriOptions['fonts'] | undefined
 
 export function getImageFonts(): SatoriOptions['fonts'] {
   if (_imageFonts) return _imageFonts
-  const fontDir = join(__dirname, '../../assets/fonts')
+  const fontDir = join(__dirname, '../../../apps/web/public/font')
   _imageFonts = [
     {
       name: 'Minecraft',

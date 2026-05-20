@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 interface TimeParts {
@@ -34,16 +36,32 @@ function Unit({ value, label }: { value: number; label: string }) {
   )
 }
 
-export function Countdown({ target }: { target: Date }) {
+export function Countdown({ target, isOver = false }: { target: Date; isOver?: boolean }) {
   const [parts, setParts] = useState<TimeParts>(() => getTimeParts(target))
 
   useEffect(() => {
-    const id = setInterval(() => setParts(getTimeParts(target)), 1000)
+    if (parts.past) return
+    const id = setInterval(() => {
+      const next = getTimeParts(target)
+      setParts(next)
+    }, 1000)
     return () => clearInterval(id)
-  }, [target])
+  }, [target, parts.past])
 
   if (parts.past) {
-    return <p className="text-zinc-500 text-lg">Starting soon…</p>
+    return (
+      <Link
+        href="/live"
+        className={`inline-flex items-center gap-2 px-6 py-3 rounded-lg transition-colors ${
+          isOver
+            ? 'bg-zinc-800 border border-zinc-700 text-zinc-400 hover:bg-zinc-700'
+            : 'bg-accent/15 text-accent hover:bg-accent/20'
+        }`}
+      >
+        {isOver ? 'View results' : 'View live standings'}
+        <ArrowRight size={20} />
+      </Link>
+    )
   }
 
   return (

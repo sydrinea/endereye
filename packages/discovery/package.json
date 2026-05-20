@@ -13,7 +13,10 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "seed": "tsx lib/seed.ts"
+    "test": "vitest run",
+    "seed": "tsx lib/seed.ts",
+    "gen-event": "tsx scripts/gen-event.ts",
+    "seed-worlds-players": "tsx scripts/seed-worlds-players.ts"
   },
   "dependencies": {
     "@endereye/core": "*",
@@ -22,6 +25,7 @@
   "devDependencies": {
     "@types/node": "^25.9.0",
     "tsx": "^4.22.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6"
   }
 }

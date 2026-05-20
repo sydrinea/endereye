@@ -16,11 +16,11 @@ export default async function Page({
   const eventLabel = event?.label ?? `S${season} LCQ`
   const isActive = event?.slug === ACTIVE_EVENT.slug
 
-  const eventData = await loadEventData('lcq', season, { skipOdds: true })
+  const eventData = await loadEventData('lcq', season)
 
   const { seed: seedParam } = await searchParams
-  const defaultSeed = Math.max(eventData.currentRound - 1, 1)
-  const seed = Math.min(Math.max(Number(seedParam ?? defaultSeed), 1), 10)
+  const defaultSeed = Math.max(eventData.currentRound - 1, 0)
+  const seed = Math.min(Math.max(Number(seedParam ?? defaultSeed), 0), 10)
 
   return <DashboardWrapper eventData={eventData} seed={seed} eventLabel={eventLabel} live={isActive} backHref="/" />
 }

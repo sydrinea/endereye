@@ -17,7 +17,7 @@ export const UserProfileSchema = z.object({
 
 export const PhaseLeaderboardSchema = z.object({
   phase: z.object({
-    endsAt: z.date().nullable(),
+    endsAt: z.number().nullable(),
     number: z.number().nullable(),
     season: z.number(),
   }),
@@ -122,8 +122,7 @@ const PlayerSchema = z.object({
 })
 
 const BracketEntrySchema = z.object({
-  rank: z.number(),
-  prevRank: z.number(),
+  ranks: z.array(z.number()), // ranks[i] = leaderboard position after seed i+1
   uuid: z.string(),
   completions: z.array(z.union([z.object({ place: z.number(), score: z.number() }), z.null()])),
   point: z.number(),

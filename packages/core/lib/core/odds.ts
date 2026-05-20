@@ -36,7 +36,8 @@ function getCutThreshold(cut: EliminationCut, sorted: SimPlayer[]): number {
 }
 
 function deriveStatus(bracket: BracketEntry, isSafe: boolean, isOver: boolean, qualifyCount: number): PlayerStatus {
-  if (isOver && bracket.rank <= qualifyCount) return 'qualified'
+  const currentRank = bracket.ranks[bracket.ranks.length - 1] ?? Infinity
+  if (isOver && currentRank <= qualifyCount) return 'qualified'
   if (bracket.eliminated) return 'eliminated'
   if (isSafe) return 'safe'
   return 'danger'
@@ -91,7 +92,7 @@ function computeFinishedOdds(
   | 'winProbability'
   | 'survivalProbability'
 > {
-  const qualified = bracket.rank <= qualifyCount
+  const qualified = (bracket.ranks[bracket.ranks.length - 1] ?? Infinity) <= qualifyCount
   return {
     canStillWin: true,
     isSafeAtNextCut: true,

@@ -6,9 +6,10 @@ import type { EventConfig } from '../events.config'
 interface Props {
   event: EventConfig
   pastEvents: EventConfig[]
+  isOver?: boolean
 }
 
-export function HeroSection({ event, pastEvents }: Props) {
+export function HeroSection({ event, pastEvents, isOver = false }: Props) {
   const dateLabel = event.startDate.toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
@@ -24,7 +25,7 @@ export function HeroSection({ event, pastEvents }: Props) {
           <h1 className="font-display text-4xl lg:text-6xl text-zinc-100">{event.label}</h1>
           <p className="text-zinc-500">{dateLabel} · 11am ET</p>
         </div>
-        <Countdown target={event.startDate} />
+        <Countdown target={event.startDate} isOver={isOver} />
       </section>
 
       {pastEvents.length > 0 && (

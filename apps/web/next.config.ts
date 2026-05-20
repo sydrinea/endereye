@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [{ hostname: 'mc-heads.net' }],
   },
   serverExternalPackages: ['@endereye/core'],
+  cacheComponents: true,
 };
 
 export default nextConfig;

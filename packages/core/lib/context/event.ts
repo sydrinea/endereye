@@ -1,7 +1,5 @@
 import z from 'zod'
-import { fetchEvent } from '../api/fetch'
 import { BracketEntry, EventKind } from '../api/types'
-import { enrichEventPlayers as enrichUsers } from '../players'
 
 export const EventPlayerSchema = z.object({
   uuid: z.string(),
@@ -29,15 +27,6 @@ export interface EventContext {
   readonly qualifyCount?: number
 }
 
-export async function createEventContext(kind: EventKind, season: number): Promise<EventContext> {
-  const raw = await fetchEvent(kind, season)
-  const players = await enrichUsers(raw, kind, season)
-  return {
-    kind,
-    season,
-    players,
-    brackets: raw.brackets,
-    matches: raw.matches,
-    currentRound: raw.currentRound,
-  }
+export async function createEventContext(_kind: EventKind, _season: number): Promise<EventContext> {
+  throw new Error('createEventContext: fetchEvent API endpoint no longer available. Use loadEventData from @endereye/discovery or buildLiveEventData instead.')
 }

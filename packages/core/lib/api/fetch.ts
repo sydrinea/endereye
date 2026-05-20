@@ -1,9 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { FetchError } from '../errors'
 import {
-  Event,
-  EventKind,
-  EventSchema,
   Match,
   MatchFilter,
   MatchList,
@@ -32,23 +29,11 @@ export const ROUTES = {
     return `${API_BASE.MCSR_PUBLIC}/matches?${queryString}`
   },
   MATCH_INFO: (id: number) => `${API_BASE.MCSR_PUBLIC}/matches/${id}`,
-  PHASE_LEADERBOARD: (season: number) =>
-    `${API_BASE.MCSR_PUBLIC}/phase-leaderboard?season=${season}`,
+  PHASE_LEADERBOARD: (season: number, predicted?: boolean) =>
+    `${API_BASE.MCSR_PUBLIC}/phase-leaderboard?season=${season}&predicted=${predicted || 'false'}`,
   USER_SEASON_STATS: (uuid: string, season: number) =>
     `${API_BASE.MCSR_PUBLIC}/users/${uuid}?season=${season}`,
-  EVENT_DATA: (kind: EventKind, season: number) => {
-    const prefix = kind === 'lcq' ? 'qualifiers' : 'showdown'
-    return `${API_BASE.MCSR_WEB_API}/tourneys/${prefix}_s${season}`
-  },
 } as const
-
-export async function fetchEvent(kind: EventKind, season: number): Promise<Event> {
-  const res = await fetch(ROUTES.EVENT_DATA(kind, season))
-  if (!res.ok)
-    throw new FetchError(`[${ROUTES.EVENT_DATA(kind, season)}] Failed to fetch: ${res.status}`)
-  const json = (await res.json()) as any
-  return EventSchema.parse(json.data)
-}
 
 export async function fetchUser(uuid: string, season: number): Promise<User> {
   const res = await fetch(ROUTES.USER_SEASON_STATS(uuid, season))
@@ -69,10 +54,15 @@ export async function fetchMatch(id: number): Promise<Match> {
   return data
 }
 
-export async function fetchPhaseLeaderboard(season: number): Promise<PhaseLeaderboard> {
-  const res = await fetch(ROUTES.PHASE_LEADERBOARD(season))
+export async function fetchPhaseLeaderboard(
+  season: number,
+  predicted?: boolean,
+): Promise<PhaseLeaderboard> {
+  const res = await fetch(ROUTES.PHASE_LEADERBOARD(season, predicted))
   if (!res.ok)
-    throw new FetchError(`[${ROUTES.PHASE_LEADERBOARD(season)}] Failed to fetch: ${res.status}`)
+    throw new FetchError(
+      `[${ROUTES.PHASE_LEADERBOARD(season, predicted)}] Failed to fetch: ${res.status}`,
+    )
   const json = (await res.json()) as any
   const data = PhaseLeaderboardSchema.parse(json.data)
   return data

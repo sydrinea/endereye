@@ -1,14 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import {
-  computeHistoricalData,
-  calculatePoints,
-  createEventData,
-  EventData,
-} from '../lib/core/context'
-import type { EventKind } from '../lib/api/types'
-import { dataTable, delta, pct, rocAuc } from './utils'
+import { computeHistoricalData, calculatePoints } from '../lib/core/context'
+import { computePlayerOdds } from '../lib/core/odds'
+import type { EventContext } from '../lib/context/event'
+import type { EventKind, BracketEntry } from '../lib/api/types'
+import { dataTable, delta, pct, rocAuc } from '../lib/utils'
 import process from 'node:process'
 
 const SEASONS = [7, 8, 9, 10]
@@ -48,23 +45,42 @@ function cachePath(kind: EventKind, season: number): string {
   return path.join(CACHE_DIR, `${kind}_s${season}.json`)
 }
 
-async function loadCached(kind: EventKind, season: number): Promise<EventData> {
-  const file = cachePath(kind, season)
-  if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf-8')) as EventData
+// Migrate old archive format (rank/prevRank + top-level playerOdds) to EventContext
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function migrateArchive(raw: any): EventContext {
+  return {
+    kind: raw.kind,
+    season: raw.season,
+    players: raw.players,
+    matches: raw.matches,
+    currentRound: raw.currentRound,
+    qualifyCount: raw.qualifyCount,
+    brackets: raw.brackets.map(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (b: any): BracketEntry => ({
+        uuid: b.uuid,
+        ranks: 'ranks' in b ? (b.ranks as number[]) : [b.rank as number],
+        completions: b.completions,
+        point: b.point,
+        bonus: b.bonus,
+        eliminated: b.eliminated,
+      }),
+    ),
+  }
+}
 
-  // fetch and cache for future runs
-  const data = await createEventData(kind, season)
-  fs.mkdirSync(CACHE_DIR, { recursive: true })
-  fs.writeFileSync(file, JSON.stringify(data))
-  return data
+function loadCached(kind: EventKind, season: number): EventContext {
+  const file = cachePath(kind, season)
+  if (!fs.existsSync(file)) throw new Error(`Archive not found: ${file}`)
+  return migrateArchive(JSON.parse(fs.readFileSync(file, 'utf-8')))
 }
 
 // ── Load all events ──────────────────────────────────────────────────────
-const loadEvents = async () => {
-  const events: { kind: EventKind; season: number; data: EventData }[] = []
+const loadEvents = () => {
+  const events: { kind: EventKind; season: number; data: EventContext }[] = []
   for (const kind of KINDS) {
     for (const season of SEASONS) {
-      events.push({ kind, season, data: await loadCached(kind, season) })
+      events.push({ kind, season, data: loadCached(kind, season) })
     }
   }
   return events
@@ -72,7 +88,7 @@ const loadEvents = async () => {
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
 describe('LCQ/MSS Backtest', async () => {
-  for (const { kind, season, data } of await loadEvents()) {
+  for (const { kind, season, data } of loadEvents()) {
     describe(`${kind.toUpperCase()} S${season}`, () => {
       const finalState = computeHistoricalData(data, 10)
       const finalTruthMap = new Map(finalState.brackets.map((b) => [b.uuid, b]))
@@ -80,6 +96,7 @@ describe('LCQ/MSS Backtest', async () => {
       for (let s = 0; s < 10; s++) {
         it(`Seed ${s} → ${s + 1}`, () => {
           const state = computeHistoricalData(data, s)
+          const odds = computePlayerOdds(state)
           const nextCutSeed = [3, 5, 7, 8, 9, 10].find((c) => c > s) ?? 10
           const truthAtCut = computeHistoricalData(data, nextCutSeed)
           const truthMap = new Map(truthAtCut.brackets.map((b) => [b.uuid, b]))
@@ -88,7 +105,7 @@ describe('LCQ/MSS Backtest', async () => {
             .sort((a, b) => b.point - a.point)
           const actualCutThreshold = aliveTruth[aliveTruth.length - 1]?.point ?? 0
 
-          for (const [uuid, p] of Object.entries(state.playerOdds)) {
+          for (const [uuid, p] of Object.entries(odds)) {
             const truth = truthMap.get(uuid)
             if (!truth) continue
 

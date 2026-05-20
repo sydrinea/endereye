@@ -1,4 +1,4 @@
-import { runHeatmapSimulation, type EventKind } from '@endereye/core'
+import { computePlayerOdds, runHeatmapSimulation, type EventKind } from '@endereye/core'
 import { renderSurvivalHeatmap, copyPngToClipboard } from '@endereye/image'
 import { loadEventData, computeHistoricalData, buildPlayerViews } from '@endereye/discovery'
 import { defineCommand, runMain } from 'citty'
@@ -53,7 +53,8 @@ const main = defineCommand({
 
     const heatmap = runHeatmapSimulation(state, state.currentRound, iterations)
 
-    const players = buildPlayerViews(state)
+    const odds = computePlayerOdds(state)
+    const players = buildPlayerViews(state, odds)
     const alive = players.filter((p) => !p.eliminated)
 
     log.success(`Simulation complete — ${alive.length} players surviving`)

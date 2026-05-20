@@ -1,7 +1,7 @@
 'use client'
 
 import { useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { Dropdown } from '@/components/ui'
 
 interface Props {
@@ -11,15 +11,21 @@ interface Props {
 
 export function SeedSelector({ seeds, currentSeed }: Props) {
   const router = useRouter()
+  const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
-  const options = seeds.map((s) => ({ value: String(s), label: `After Seed ${s}` }))
+  const options = [{ value: '0', label: 'Initial Rankings' }, ...seeds.map((s) => ({ value: String(s), label: `After Seed ${s}` }))]
+  const latestSeed = seeds[seeds.length - 1]
 
   return (
     <div className="relative flex items-center gap-2">
       <Dropdown
         options={options}
         value={String(currentSeed)}
-        onChange={(v) => startTransition(() => router.push(`?seed=${v}`))}
+        onChange={(v) =>
+          startTransition(() =>
+            Number(v) === latestSeed ? router.push(pathname) : router.push(`?seed=${v}`)
+          )
+        }
       />
       {isPending && (
         <svg

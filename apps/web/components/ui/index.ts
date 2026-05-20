@@ -1,6 +1,7 @@
 export { Label } from './Label'
 export { Mono } from './Mono'
 export { PlayerAvatar } from './PlayerAvatar'
+export { RankDelta } from './RankDelta'
 export { StatusBadge } from './StatusBadge'
 export type { Status } from './StatusBadge'
 export { SurvivalPill } from './SurvivalPill'

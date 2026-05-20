@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { PlayerAvatar, StatusBadge, SurvivalPill, TableCell, TableRow } from '@/components/ui'
+import { PlayerAvatar, RankDelta, StatusBadge, SurvivalPill, TableCell, TableRow } from '@/components/ui'
 import type { Status } from '@/components/ui'
 
 export type PillData = { type: 'needs'; rank: number } | { type: 'to-cut'; deficit: number }
@@ -56,6 +56,7 @@ export function StandingsRow({ row }: { row: StandingsRowData }) {
       <TableCell className="hidden lg:block">
         <div className="flex flex-col gap-0.5">
           <span className="font-display text-zinc-300">{row.rank}</span>
+          <RankDelta delta={row.delta} />
         </div>
       </TableCell>
 
@@ -92,7 +93,10 @@ export function StandingsRow({ row }: { row: StandingsRowData }) {
       {/* Mobile layout — spans all columns */}
       <TableCell className="lg:hidden col-span-full">
         <div className="flex items-center gap-3">
-          <span className="font-display text-zinc-400 w-5 shrink-0">{row.rank}</span>
+          <div className="flex flex-col items-center w-5 shrink-0">
+            <span className="font-display text-zinc-400">{row.rank}</span>
+            <RankDelta delta={row.delta} />
+          </div>
           <PlayerAvatar nickname={row.nickname} size="sm" />
           <span className="font-display text-zinc-100 flex-1 truncate">{row.nickname}</span>
           <span className="font-display text-zinc-100 shrink-0">{row.pts}</span>
