@@ -35,8 +35,8 @@ function getCutThreshold(cut: EliminationCut, sorted: SimPlayer[]): number {
   return sorted[Math.min(cut.keepTop - 1, sorted.length - 1)]?.point ?? 0
 }
 
-function deriveStatus(bracket: BracketEntry, isSafe: boolean, isOver: boolean): PlayerStatus {
-  if (isOver && bracket.rank <= QUALIFY_COUNT) return 'qualified'
+function deriveStatus(bracket: BracketEntry, isSafe: boolean, isOver: boolean, qualifyCount: number): PlayerStatus {
+  if (isOver && bracket.rank <= qualifyCount) return 'qualified'
   if (bracket.eliminated) return 'eliminated'
   if (isSafe) return 'safe'
   return 'danger'
@@ -47,6 +47,7 @@ function computeActiveOdds(
   alivePlayers: SimPlayer[],
   currentRound: number,
   mcResults: Record<string, { winProbability: number; survivalProbability: number }>,
+  qualifyCount: number,
 ): Pick<
   PlayerOdds,
   | 'canStillWin'
@@ -61,7 +62,7 @@ function computeActiveOdds(
     alivePlayers,
     currentRound,
     ELIMINATION_SCHEDULE,
-    QUALIFY_COUNT,
+    qualifyCount,
   )
   const isSafeAtNextCut =
     canStillWin &&
@@ -80,6 +81,7 @@ function computeActiveOdds(
 
 function computeFinishedOdds(
   bracket: BracketEntry,
+  qualifyCount: number,
 ): Pick<
   PlayerOdds,
   | 'canStillWin'
@@ -89,7 +91,7 @@ function computeFinishedOdds(
   | 'winProbability'
   | 'survivalProbability'
 > {
-  const qualified = bracket.rank <= QUALIFY_COUNT
+  const qualified = bracket.rank <= qualifyCount
   return {
     canStillWin: true,
     isSafeAtNextCut: true,
@@ -102,6 +104,7 @@ function computeFinishedOdds(
 
 export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds> {
   const { currentRound, brackets, players } = ctx
+  const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
   const isOver = currentRound > 10
 
   const playerLookup = new Map(players.map((p) => [p.uuid, p]))
@@ -116,7 +119,7 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
 
   const mcResults =
     !isOver && currentRound >= 1 && alivePlayers.length > 0
-      ? runMonteCarlo(alivePlayers, currentRound, ELIMINATION_SCHEDULE, QUALIFY_COUNT)
+      ? runMonteCarlo(alivePlayers, currentRound, ELIMINATION_SCHEDULE, qualifyCount)
       : {}
 
   const lobbyStats = calculateLobbyStats(alivePlayers)
@@ -136,15 +139,15 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
             survivalProbability: 0,
           }
         : isOver
-          ? computeFinishedOdds(bracket)
-          : computeActiveOdds(bracket.uuid, alivePlayers, currentRound, mcResults)
+          ? computeFinishedOdds(bracket, qualifyCount)
+          : computeActiveOdds(bracket.uuid, alivePlayers, currentRound, mcResults, qualifyCount)
 
       return [
         bracket.uuid,
         {
           uuid: bracket.uuid,
           cutDelta: bracket.point - cutThresholdPoint,
-          status: deriveStatus(bracket, computed.isSafeAtNextCut, isOver),
+          status: deriveStatus(bracket, computed.isSafeAtNextCut, isOver, qualifyCount),
           power,
           ...computed,
         },

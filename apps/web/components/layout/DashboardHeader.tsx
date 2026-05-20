@@ -17,6 +17,7 @@ interface Props {
   currentSeed: number
   alive: number
   counts: StatusCounts
+  live?: boolean
 }
 
 const statusKeys: Array<{ key: keyof StatusCounts; status: Status }> = [
@@ -28,7 +29,7 @@ const statusKeys: Array<{ key: keyof StatusCounts; status: Status }> = [
   { key: 'mustClutch', status: 'must-clutch' },
 ]
 
-export function DashboardHeader({ event, seeds, currentSeed, alive, counts }: Props) {
+export function DashboardHeader({ event, seeds, currentSeed, alive, counts, live = true }: Props) {
   const segments = statusKeys
     .filter(({ key }) => (counts[key] ?? 0) > 0)
     .map(({ key, status }) => ({ status, count: counts[key]! }))
@@ -38,10 +39,17 @@ export function DashboardHeader({ event, seeds, currentSeed, alive, counts }: Pr
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 lg:gap-4 min-w-0">
           <div className="flex items-center gap-2 lg:gap-3 shrink-0">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 lg:px-3 lg:py-1 rounded-full bg-safe/10 border border-safe/30 text-safe text-xs lg:text-sm font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-safe animate-pulse" />
-              Live
-            </span>
+            {live ? (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 lg:px-3 lg:py-1 rounded-full bg-safe/10 border border-safe/30 text-safe text-xs lg:text-sm font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-safe animate-pulse" />
+                Live
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 lg:px-3 lg:py-1 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-500 text-xs lg:text-sm font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+                Final
+              </span>
+            )}
             <span className="text-zinc-300 text-sm lg:text-xl font-serif font-semibold">
               {event}
             </span>

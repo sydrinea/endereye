@@ -26,6 +26,7 @@ export interface EventContext {
   readonly brackets: BracketEntry[]
   readonly matches: number[]
   readonly currentRound: number
+  readonly qualifyCount?: number
 }
 
 export async function createEventContext(kind: EventKind, season: number): Promise<EventContext> {

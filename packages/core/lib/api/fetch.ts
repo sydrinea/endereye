@@ -78,7 +78,7 @@ export async function fetchPhaseLeaderboard(season: number): Promise<PhaseLeader
   return data
 }
 
-async function fetchLatestMatchId(): Promise<number> {
+export async function fetchLatestMatchId(): Promise<number> {
   const res = await fetch(ROUTES.MATCHES())
   if (!res.ok) throw new FetchError(`[${ROUTES.MATCHES()}] Failed to fetch: ${res.status}`)
   const json = (await res.json()) as any

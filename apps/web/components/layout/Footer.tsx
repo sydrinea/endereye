@@ -11,7 +11,7 @@ export function Footer() {
             width={80}
             height={80}
             loading="eager"
-            style={{ imageRendering: 'pixelated' }}
+            quality={100}
           />
           <span className="font-display text-3xl text-zinc-100">endereye</span>
           <p className="text-sm text-zinc-500">survival odds for MCSR Ranked events</p>

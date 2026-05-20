@@ -25,9 +25,9 @@ export function createEventDataFromParts(
   players: EventPlayer[],
   kind: EventKind,
   season: number,
-  opts: { skipOdds?: boolean } = {},
+  opts: { skipOdds?: boolean; qualifyCount?: number } = {},
 ): EventData {
-  const ctx: EventContext = { kind, season, players, brackets: event.brackets, matches: event.matches, currentRound: event.currentRound }
+  const ctx: EventContext = { kind, season, players, brackets: event.brackets, matches: event.matches, currentRound: event.currentRound, qualifyCount: opts.qualifyCount }
   return { ...ctx, playerOdds: opts.skipOdds ? {} : computePlayerOdds(ctx) }
 }
 

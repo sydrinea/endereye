@@ -1,10 +1,12 @@
 'use client'
 
+import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 import { use, useState } from 'react'
 import { computeHistoricalData, buildPlayerViews } from '@endereye/core'
 import type { PlayerView, EventData } from '@endereye/core'
 import { DashboardHeader, CutBanner, Surface } from '@/components/layout'
-import { Table, TableHeader, TableHeaderCell } from '@/components/ui'
+import { Table } from '@/components/ui'
 import { StandingsRow } from './StandingsRow'
 import { EliminatedSection } from './EliminatedSection'
 import type { StandingsRowData } from './StandingsRow'
@@ -57,9 +59,15 @@ function toRowData(view: PlayerView): StandingsRowData {
 export function DashboardClient({
   eventData,
   seed,
+  eventLabel = 'S10 LCQ',
+  live = true,
+  backHref,
 }: {
   eventData: EventData
   seed: number
+  eventLabel?: string
+  live?: boolean
+  backHref?: string
 }) {
   const [state, setState] = useState(() => ({
     seed,
@@ -128,12 +136,20 @@ export function DashboardClient({
 
   return (
     <>
+      {backHref && (
+        <div className="w-full px-4 lg:px-8 pt-4">
+          <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
+            <ArrowLeft size={14} />Back
+          </Link>
+        </div>
+      )}
       <DashboardHeader
-        event="S10 LCQ"
+        event={eventLabel}
         seeds={ALL_SEEDS}
         currentSeed={seed}
         alive={rows.length}
         counts={counts}
+        live={live}
       />
       <Surface width="xl">
         <div className="flex flex-col gap-2">
