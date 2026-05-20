@@ -4,17 +4,19 @@
     "module": "CommonJS",
     "moduleResolution": "Node10",
     "ignoreDeprecations": "6.0",
+    "lib": ["ES2022"],
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": "lib",
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["src"],
-  "references": [
-    { "path": "../../packages/core" },
-    { "path": "../../packages/image" },
-    { "path": "../../packages/discovery" }
-  ]
+  "include": ["lib"],
+  "exclude": ["dist", "node_modules"],
+  "references": [{ "path": "../core" }]
 }

@@ -1,4 +1,5 @@
 import { StatusBar } from '@/components/ui'
+import { SeedSelector } from './SeedSelector'
 import type { Status } from '@/components/ui'
 
 interface StatusCounts {
@@ -12,8 +13,8 @@ interface StatusCounts {
 
 interface Props {
   event: string
-  afterSeed: number
-  seedsRemaining: number
+  seeds: number[]
+  currentSeed: number
   alive: number
   counts: StatusCounts
 }
@@ -27,7 +28,7 @@ const statusKeys: Array<{ key: keyof StatusCounts; status: Status }> = [
   { key: 'mustClutch', status: 'must-clutch' },
 ]
 
-export function DashboardHeader({ event, afterSeed, seedsRemaining, alive, counts }: Props) {
+export function DashboardHeader({ event, seeds, currentSeed, alive, counts }: Props) {
   const segments = statusKeys
     .filter(({ key }) => (counts[key] ?? 0) > 0)
     .map(({ key, status }) => ({ status, count: counts[key]! }))
@@ -45,9 +46,7 @@ export function DashboardHeader({ event, afterSeed, seedsRemaining, alive, count
               {event}
             </span>
           </div>
-          <span className="text-zinc-400 text-xs font-serif sm:text-sm lg:text-base sm:text-zinc-500">
-            After Seed {afterSeed} ({seedsRemaining} remaining)
-          </span>
+          <SeedSelector seeds={seeds} currentSeed={currentSeed} />
         </div>
 
         <div className="flex shrink-0">

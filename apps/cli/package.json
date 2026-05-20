@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@endereye/core": "*",
+    "@endereye/image": "*",
+    "@endereye/discovery": "*",
     "citty": "^0.1.6",
     "consola": "^3.4.2"
   },

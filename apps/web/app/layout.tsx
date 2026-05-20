@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist_Mono, Raleway, Lora } from 'next/font/google'
 import localFont from 'next/font/local'
 
+import { Footer } from '@/components/layout'
 import './globals.css'
 
 const minecraft = localFont({
@@ -50,6 +51,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-zinc-950">
         <div className="flex-1">{children}</div>
+        <Footer />
       </body>
     </html>
   )

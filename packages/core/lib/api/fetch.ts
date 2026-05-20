@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { FetchError } from '../errors'
 import {
   Event,
@@ -45,7 +46,7 @@ export async function fetchEvent(kind: EventKind, season: number): Promise<Event
   const res = await fetch(ROUTES.EVENT_DATA(kind, season))
   if (!res.ok)
     throw new FetchError(`[${ROUTES.EVENT_DATA(kind, season)}] Failed to fetch: ${res.status}`)
-  const json = await res.json() as any
+  const json = (await res.json()) as any
   return EventSchema.parse(json.data)
 }
 
@@ -55,7 +56,7 @@ export async function fetchUser(uuid: string, season: number): Promise<User> {
     throw new FetchError(
       `[${ROUTES.USER_SEASON_STATS(uuid, season)}] Failed to fetch: ${res.status}`,
     )
-  const json = await res.json() as any
+  const json = (await res.json()) as any
   const data = UserSchema.parse(json.data)
   return data
 }
@@ -63,7 +64,7 @@ export async function fetchUser(uuid: string, season: number): Promise<User> {
 export async function fetchMatch(id: number): Promise<Match> {
   const res = await fetch(ROUTES.MATCH_INFO(id))
   if (!res.ok) throw new FetchError(`[${ROUTES.MATCH_INFO(id)}] Failed to fetch: ${res.status}`)
-  const json = await res.json() as any
+  const json = (await res.json()) as any
   const data = MatchSchema.parse(json.data)
   return data
 }
@@ -72,7 +73,7 @@ export async function fetchPhaseLeaderboard(season: number): Promise<PhaseLeader
   const res = await fetch(ROUTES.PHASE_LEADERBOARD(season))
   if (!res.ok)
     throw new FetchError(`[${ROUTES.PHASE_LEADERBOARD(season)}] Failed to fetch: ${res.status}`)
-  const json = await res.json() as any
+  const json = (await res.json()) as any
   const data = PhaseLeaderboardSchema.parse(json.data)
   return data
 }
@@ -80,7 +81,7 @@ export async function fetchPhaseLeaderboard(season: number): Promise<PhaseLeader
 async function fetchLatestMatchId(): Promise<number> {
   const res = await fetch(ROUTES.MATCHES())
   if (!res.ok) throw new FetchError(`[${ROUTES.MATCHES()}] Failed to fetch: ${res.status}`)
-  const json = await res.json() as any
+  const json = (await res.json()) as any
   const data = MatchListSchema.parse(json.data)
   return data[0].id
 }
@@ -88,7 +89,7 @@ async function fetchLatestMatchId(): Promise<number> {
 async function fetchMatches(filter: MatchFilter): Promise<MatchList> {
   const res = await fetch(ROUTES.MATCHES(filter))
   if (!res.ok) throw new FetchError(`[${ROUTES.MATCHES(filter)}] Failed to fetch: ${res.status}`)
-  const json = await res.json() as any
+  const json = (await res.json()) as any
   const data = MatchListSchema.parse(json.data)
   return data
 }

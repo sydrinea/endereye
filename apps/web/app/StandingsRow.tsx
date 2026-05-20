@@ -58,7 +58,7 @@ export function StandingsRow({ row }: { row: StandingsRowData }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <TableRow accentColor={statusAccent[row.status]}>
+    <TableRow accentColor={statusAccent[row.status]} onClick={() => setExpanded(e => !e)}>
       {/* Desktop layout */}
       <TableCell className="hidden lg:block">
         <div className="flex flex-col gap-0.5">
@@ -99,34 +99,25 @@ export function StandingsRow({ row }: { row: StandingsRowData }) {
 
       {/* Mobile layout — spans all columns */}
       <TableCell className="lg:hidden col-span-full">
-        <button
-          className="w-full flex items-center gap-3 text-left"
-          onClick={() => setExpanded(e => !e)}
-        >
+        <div className="flex items-center gap-3">
           <span className="font-display text-zinc-400 w-5 shrink-0">{row.rank}</span>
           <PlayerAvatar nickname={row.nickname} size="sm" />
           <span className="font-display text-zinc-100 flex-1 truncate">{row.nickname}</span>
           <span className="font-display text-zinc-100 shrink-0">{row.pts}</span>
           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDotColor[row.status]}`} />
-        </button>
+        </div>
 
         {/* Expandable detail */}
         <div className={`grid transition-all duration-200 ${expanded ? 'grid-rows-[1fr] mt-3' : 'grid-rows-[0fr]'}`}>
           <div className="overflow-hidden">
-            <div className="flex items-start justify-between pt-0.5 pl-8">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={row.status} />
-                  <span className={`text-xs ${dimmedFg[row.status]}`}>
-                    {row.survivalPct}%{' '}
-                    {row.status === 'safe' || row.status === 'qualified' ? 'Win' : 'Survive'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-xs text-zinc-500">
-                  <RankDelta delta={row.delta} />
-                  {row.bonus > 0 && <span>+{row.bonus} bonus</span>}
-                </div>
-              </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-0.5 pl-8">
+              <StatusBadge status={row.status} />
+              <span className={`text-xs ${dimmedFg[row.status]}`}>
+                {row.survivalPct}%{' '}
+                {row.status === 'safe' || row.status === 'qualified' ? 'Win' : 'Survive'}
+              </span>
+              <RankDelta delta={row.delta} />
+              {row.bonus > 0 && <span className="text-xs text-zinc-500">+{row.bonus} bonus</span>}
               {row.pill && <SurvivalPill {...row.pill} />}
             </div>
           </div>

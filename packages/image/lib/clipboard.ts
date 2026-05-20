@@ -3,7 +3,7 @@ import { unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { platform } from 'node:os'
 import { join } from 'node:path'
-import { AppError } from './errors'
+import { AppError } from '@endereye/core'
 
 function copyDarwin(buffer: Buffer): void {
   const tmp = join(tmpdir(), `endereye-${Date.now()}.png`)

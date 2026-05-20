@@ -9,3 +9,4 @@ export { Table, TableHeader, TableHeaderCell, TableRow, TableCell } from './Tabl
 export { StatusRing } from './StatusRing'
 export { StatusBar } from './StatusBar'
 export { Tabs } from './Tabs'
+export { Dropdown } from './Dropdown'

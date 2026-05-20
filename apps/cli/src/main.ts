@@ -1,12 +1,6 @@
-import {
-  createEventData,
-  computeHistoricalData,
-  buildPlayerViews,
-  runHeatmapSimulation,
-  renderSurvivalHeatmap,
-  copyPngToClipboard,
-  type EventKind,
-} from '@endereye/core'
+import { runHeatmapSimulation, type EventKind } from '@endereye/core'
+import { renderSurvivalHeatmap, copyPngToClipboard } from '@endereye/image'
+import { loadEventData, computeHistoricalData, buildPlayerViews } from '@endereye/discovery'
 import { defineCommand, runMain } from 'citty'
 import { log } from './logger'
 
@@ -50,7 +44,7 @@ const main = defineCommand({
     log.section(`S${season} ${kind.toUpperCase()} — After Seed ${afterSeed}`)
 
     log.start('Fetching event data...')
-    const data = await createEventData(kind, season)
+    const data = await loadEventData(kind, season)
 
     log.start(`Computing historical state at seed ${afterSeed}...`)
     const state = computeHistoricalData(data, afterSeed)

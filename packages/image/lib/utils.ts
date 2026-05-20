@@ -1,4 +1,4 @@
-import { FetchError } from '../errors'
+import { FetchError } from '@endereye/core'
 
 export async function fetchPlayerHeads(nicknames: string[]): Promise<Record<string, string>> {
   const avatarUrls: Record<string, string> = {}

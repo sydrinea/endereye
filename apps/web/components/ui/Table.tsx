@@ -41,15 +41,18 @@ export function TableRow({
   children,
   accentColor,
   className,
+  onClick,
 }: {
   children: React.ReactNode
   accentColor?: string
   className?: string
+  onClick?: () => void
 }) {
   return (
     <div
-      className={`row-card grid items-center gap-4 rounded-lg px-4 py-3.5 backdrop-blur-sm grid-cols-[1fr] lg:grid-cols-(--table-cols) ${className ?? ''}`}
+      className={`row-card grid items-center gap-4 rounded-lg px-4 py-3.5 backdrop-blur-sm grid-cols-[1fr] lg:grid-cols-(--table-cols) ${onClick ? 'cursor-pointer lg:cursor-auto' : ''} ${className ?? ''}`}
       style={accentColor ? { '--accent': accentColor } as React.CSSProperties : undefined}
+      onClick={onClick}
     >
       {children}
     </div>
