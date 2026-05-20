@@ -20,14 +20,6 @@ export function Footer() {
             >
               mcsrranked.com ↗
             </a>
-            <a
-              href="https://github.com/sydrinea/endereye"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-zinc-300 transition-colors"
-            >
-              GitHub ↗
-            </a>
           </div>
           <span className="text-zinc-600">made by sydrinea</span>
         </div>
