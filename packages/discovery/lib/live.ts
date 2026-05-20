@@ -18,18 +18,33 @@ export async function buildLiveEventData(
 ): Promise<EventContext> {
   const before = await fetchLatestMatchId()
   const matches = await fetchEventMatches({ after: opts.after, before })
-  const leaderboard = await fetchPhaseLeaderboard(season)
+  const leaderboard = await fetchPhaseLeaderboard(season, true)
 
   if (matches.length === 0) {
     const field = new Set(opts.players.map((p) => p.uuid))
     const bonusMap = computeBonusMapForPlayers(field, leaderboard)
+
+    const sorted = [...opts.players].sort((a, b) => {
+      const bonusDiff = (bonusMap.get(b.uuid) ?? 0) - (bonusMap.get(a.uuid) ?? 0)
+      if (bonusDiff !== 0) return bonusDiff
+      return (a.eloRank ?? Infinity) - (b.eloRank ?? Infinity)
+    })
+    const rankMap = new Map<string, number>()
+    let rank = 1
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && (bonusMap.get(sorted[i].uuid) ?? 0) < (bonusMap.get(sorted[i - 1].uuid) ?? 0)) {
+        rank = i + 1
+      }
+      rankMap.set(sorted[i].uuid, rank)
+    }
+
     return {
       kind,
       season,
       players: opts.players,
       brackets: opts.players.map((p) => ({
         uuid: p.uuid,
-        ranks: [],
+        ranks: [rankMap.get(p.uuid) ?? 1],
         completions: [],
         point: bonusMap.get(p.uuid) ?? 0,
         bonus: bonusMap.get(p.uuid) ?? 0,

@@ -64,7 +64,6 @@ describe('pre-event (no matches)', () => {
     expect(ctx.currentRound).toBe(1)
     expect(ctx.brackets).toHaveLength(16)
     for (const b of ctx.brackets) {
-      expect(b.ranks).toEqual([])
       expect(b.completions).toEqual([])
       expect(b.eliminated).toBe(false)
     }

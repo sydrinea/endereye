@@ -23,13 +23,13 @@ export const EVENTS: EventConfig[] = [
   },
   {
     slug: 'worlds-2026',
-    label: 'MCSR World Championships LCQ',
+    label: 'World Championships LCQ',
     kind: 'lcq',
     season: 11,
-    startDate: new Date(Date.now() + 10 * 1000), // TESTING ONLY: revert to new Date('2026-05-24T15:00:00Z'),
+    startDate: new Date('2026-05-24T15:00:00Z'),
     path: '/special/2026/worlds',
     cacheKey: 'lcq:2026.worlds',
-    matchBoundsAfter: 10321557, // set ~1h before event via scripts/get-latest-match-id.ts
+    matchBoundsAfter: 10343309, // set ~1h before event via scripts/get-latest-match-id.ts
     isSpecial: true,
     qualifyCount: 2,
   },
