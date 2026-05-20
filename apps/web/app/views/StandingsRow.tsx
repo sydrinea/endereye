@@ -1,14 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  PlayerAvatar,
-  RankDelta,
-  StatusBadge,
-  SurvivalPill,
-  TableCell,
-  TableRow,
-} from '@/components/ui'
+import { PlayerAvatar, StatusBadge, SurvivalPill, TableCell, TableRow } from '@/components/ui'
 import type { Status } from '@/components/ui'
 
 export type PillData = { type: 'needs'; rank: number } | { type: 'to-cut'; deficit: number }
@@ -25,45 +18,44 @@ export interface StandingsRowData {
 }
 
 const dimmedFg: Record<Status, string> = {
-  qualified:     'text-qualified/60',
-  safe:          'text-safe/60',
-  'near-safe':   'text-near-safe/60',
-  'coin-flip':   'text-coin-flip/60',
-  'at-risk':     'text-at-risk/60',
+  qualified: 'text-qualified/60',
+  safe: 'text-safe/60',
+  'near-safe': 'text-near-safe/60',
+  'coin-flip': 'text-coin-flip/60',
+  'at-risk': 'text-at-risk/60',
   'must-clutch': 'text-must-clutch/60',
-  out:           'text-zinc-600',
+  out: 'text-zinc-600',
 }
 
 export const statusAccent: Record<Status, string | undefined> = {
-  qualified:     'var(--color-qualified)',
-  safe:          'var(--color-safe)',
-  'near-safe':   'var(--color-near-safe)',
-  'coin-flip':   'var(--color-coin-flip)',
-  'at-risk':     'var(--color-at-risk)',
+  qualified: 'var(--color-qualified)',
+  safe: 'var(--color-safe)',
+  'near-safe': 'var(--color-near-safe)',
+  'coin-flip': 'var(--color-coin-flip)',
+  'at-risk': 'var(--color-at-risk)',
   'must-clutch': 'var(--color-must-clutch)',
-  out:           undefined,
+  out: undefined,
 }
 
 const statusDotColor: Record<Status, string> = {
-  qualified:     'bg-qualified',
-  safe:          'bg-safe',
-  'near-safe':   'bg-near-safe',
-  'coin-flip':   'bg-coin-flip',
-  'at-risk':     'bg-at-risk',
+  qualified: 'bg-qualified',
+  safe: 'bg-safe',
+  'near-safe': 'bg-near-safe',
+  'coin-flip': 'bg-coin-flip',
+  'at-risk': 'bg-at-risk',
   'must-clutch': 'bg-must-clutch',
-  out:           'bg-zinc-600',
+  out: 'bg-zinc-600',
 }
 
 export function StandingsRow({ row }: { row: StandingsRowData }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <TableRow accentColor={statusAccent[row.status]} onClick={() => setExpanded(e => !e)}>
+    <TableRow accentColor={statusAccent[row.status]} onClick={() => setExpanded((e) => !e)}>
       {/* Desktop layout */}
       <TableCell className="hidden lg:block">
         <div className="flex flex-col gap-0.5">
           <span className="font-display text-zinc-300">{row.rank}</span>
-          <RankDelta delta={row.delta} />
         </div>
       </TableCell>
 
@@ -108,7 +100,9 @@ export function StandingsRow({ row }: { row: StandingsRowData }) {
         </div>
 
         {/* Expandable detail */}
-        <div className={`grid transition-all duration-200 ${expanded ? 'grid-rows-[1fr] mt-3' : 'grid-rows-[0fr]'}`}>
+        <div
+          className={`grid transition-all duration-200 ${expanded ? 'grid-rows-[1fr] mt-3' : 'grid-rows-[0fr]'}`}
+        >
           <div className="overflow-hidden">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-0.5 pl-8">
               <StatusBadge status={row.status} />
@@ -116,7 +110,6 @@ export function StandingsRow({ row }: { row: StandingsRowData }) {
                 {row.survivalPct}%{' '}
                 {row.status === 'safe' || row.status === 'qualified' ? 'Win' : 'Survive'}
               </span>
-              <RankDelta delta={row.delta} />
               {row.bonus > 0 && <span className="text-xs text-zinc-500">+{row.bonus} bonus</span>}
               {row.pill && <SurvivalPill {...row.pill} />}
             </div>
