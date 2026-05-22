@@ -9,7 +9,7 @@ const FIELD_UUIDS = [
 
 const FIELD_PLAYERS = FIELD_UUIDS.map((uuid, i) => ({
   uuid,
-  nickname: ['Feinberg','Couriway','Brentilda','Elysaku','Doogile','k4yfour','Kenadian','Shylie','Cojiro','TheeSizzler','Lycan','Coolboyra','nEmerald','Dreams','Salmoni','Rayoh'][i],
+  nickname: ['edcr','Infume','Feinberg','Aquacorde','lowk3y_','nahhann','steez','silverrruns','woofdoggo_','priffie','BlazeMind','Ancoboyy','subdas','nEmerald','Watermelon1708','amariyy'][i],
   eloRate: 2200 - i * 50,
   eloRank: i + 1,
   country: ['us','us','gb','jp','ca','au','de','fr','kr','us','gb','jp','ca','au','de','fr'][i],
