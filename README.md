@@ -39,15 +39,11 @@ These are computed deterministically, not from simulation, so they carry no samp
 The model has been backtested across Seasons 7–10 for both LCQ and MSS:
 
 - **AUC 0.886** vs. baseline 0.762 — statistically significant lift over raw Elo (p < 0.001, bootstrap 1000 iterations)
-- **0 clinch violations** — no player flagged as safe was subsequently eliminated
-- **0 safe violations** — no clinch guarantee was incorrect
+- **0 clinch violations** — no clinch guarantee was incorrect
+- **0 safe violations** — no player flagged as safe was subsequently eliminated
 
 Calibration is slightly overconfident in the 10–80% survival range (actual rates run ~3–6% below predicted), likely due to underestimating DNF variance in the competitive field.
 
 ## Usage
 
-```bash
-npm run dev -- --season 10 --event lcq --seed 7
-```
-
-Generates a shareable PNG of current survival odds and copies it to your clipboard.
+Visit [https://lcqtracker.vercel.app](https://lcqtracker.vercel.app), where it updates in real time for the currently active event!
