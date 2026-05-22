@@ -14,15 +14,16 @@ export const WORLDS_2026_PLAYERS = worlds2026PlayersJson as EventPlayer[]
 export async function buildLiveEventData(
   kind: EventKind,
   season: number,
-  opts: { after: number; players: EventPlayer[]; qualifyCount?: number },
+  opts: { after: number; players: EventPlayer[]; qualifyCount?: number; noBonus?: boolean },
 ): Promise<EventContext> {
   const before = await fetchLatestMatchId()
   const matches = await fetchEventMatches({ after: opts.after, before })
-  const leaderboard = await fetchPhaseLeaderboard(season, true)
 
   if (matches.length === 0) {
     const field = new Set(opts.players.map((p) => p.uuid))
-    const bonusMap = computeBonusMapForPlayers(field, leaderboard)
+    const bonusMap = opts.noBonus
+      ? new Map(opts.players.map((p) => [p.uuid, 0]))
+      : computeBonusMapForPlayers(field, await fetchPhaseLeaderboard(season, true))
 
     const sorted = [...opts.players].sort((a, b) => {
       const bonusDiff = (bonusMap.get(b.uuid) ?? 0) - (bonusMap.get(a.uuid) ?? 0)
@@ -56,7 +57,9 @@ export async function buildLiveEventData(
     }
   }
 
-  const bonusMap = computeBonusMap(matches, leaderboard)
+  const bonusMap = opts.noBonus
+    ? new Map(matches[0].players.map((p) => [p.uuid, 0]))
+    : computeBonusMap(matches, await fetchPhaseLeaderboard(season, true))
   const event = buildEvent(matches, bonusMap)
 
   // Use the actual match field as ground truth for who's playing.

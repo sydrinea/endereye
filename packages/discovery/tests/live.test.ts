@@ -302,9 +302,73 @@ describe('player resolution from match field', () => {
     const p14 = ctx.players.find((p) => p.uuid === 'player-14')!
     const p15 = ctx.players.find((p) => p.uuid === 'player-15')!
     // Basic fallback: nickname and eloRate from match UserProfile, stats zeroed
-    expect(p14.nickname).toBe('Salmoni')
+    expect(p14.nickname).toBe('Watermelon1708')
     expect(p14.bestTimeMs).toBe(0)
-    expect(p15.nickname).toBe('Rayoh')
+    expect(p15.nickname).toBe('amariyy')
     expect(p15.bestTimeMs).toBe(0)
+  })
+})
+
+describe('noBonus option', () => {
+  const OPTS_NO_BONUS = { ...OPTS, noBonus: true }
+
+  describe('pre-event (no matches)', () => {
+    beforeEach(() => {
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+        const url = input.toString()
+        if (url.includes('/phase-leaderboard')) throw new Error('fixture: leaderboard should not be fetched when noBonus')
+        if (url.endsWith('/matches?')) return jsonOk([{ ...VALID_MATCHES[0], id: LATEST_MATCH_ID }])
+        if (url.includes('/matches?before=')) return jsonOk([])
+        throw new Error(`fixture: unhandled URL: ${url}`)
+      })
+    })
+
+    it('all brackets have bonus 0 and point 0', async () => {
+      const ctx = await buildLiveEventData('lcq', 11, OPTS_NO_BONUS)
+      for (const b of ctx.brackets) {
+        expect(b.bonus).toBe(0)
+        expect(b.point).toBe(0)
+      }
+    })
+
+    it('does not fetch the leaderboard', async () => {
+      await expect(buildLiveEventData('lcq', 11, OPTS_NO_BONUS)).resolves.not.toThrow()
+    })
+  })
+
+  describe('full event (all matches)', () => {
+    beforeEach(() => {
+      let batchCalled = false
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+        const url = input.toString()
+        if (url.includes('/phase-leaderboard')) throw new Error('fixture: leaderboard should not be fetched when noBonus')
+        if (url.endsWith('/matches?'))
+          return jsonOk([{ ...VALID_MATCHES[VALID_MATCHES.length - 1], id: LATEST_MATCH_ID }])
+        const detailMatch = url.match(/\/matches\/(\d+)$/)
+        if (detailMatch) {
+          const id = Number(detailMatch[1])
+          const match = VALID_MATCHES.find((m) => m.id === id)
+          if (!match) throw new Error(`fixture: no match ${id}`)
+          return jsonOk(match)
+        }
+        if (url.includes('/matches?before=')) {
+          if (batchCalled) return jsonOk([])
+          batchCalled = true
+          return jsonOk(ALL_RAW_MATCHES)
+        }
+        throw new Error(`fixture: unhandled: ${url}`)
+      })
+    })
+
+    it('all brackets have bonus 0', async () => {
+      const ctx = await buildLiveEventData('lcq', 11, OPTS_NO_BONUS)
+      for (const b of ctx.brackets) {
+        expect(b.bonus).toBe(0)
+      }
+    })
+
+    it('does not fetch the leaderboard', async () => {
+      await expect(buildLiveEventData('lcq', 11, OPTS_NO_BONUS)).resolves.not.toThrow()
+    })
   })
 })

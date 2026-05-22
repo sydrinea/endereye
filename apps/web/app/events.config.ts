@@ -9,6 +9,7 @@ export interface EventConfig {
   matchBoundsAfter?: number
   isSpecial?: boolean
   qualifyCount?: number
+  noBonus?: boolean
 }
 
 export const EVENTS: EventConfig[] = [
@@ -32,6 +33,7 @@ export const EVENTS: EventConfig[] = [
     matchBoundsAfter: 10343309, // set ~1h before event via scripts/get-latest-match-id.ts
     isSpecial: true,
     qualifyCount: 2,
+    noBonus: true,
   },
 ]
 

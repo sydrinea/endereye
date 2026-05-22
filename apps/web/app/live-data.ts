@@ -82,6 +82,7 @@ async function buildEventData(): Promise<EventContext> {
     after: ACTIVE_EVENT.matchBoundsAfter ?? 0,
     players: WORLDS_2026_PLAYERS,
     qualifyCount: ACTIVE_EVENT.qualifyCount,
+    noBonus: ACTIVE_EVENT.noBonus,
   })
 
   const enriched = await Promise.all(
