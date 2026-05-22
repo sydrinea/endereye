@@ -11,6 +11,10 @@ A live survival odds calculator for MCSR Ranked LCQ and MSS events
 
 `endereye` generates per-player qualification probabilities during Last Chance Qualifiers and Midseason Showdowns, updating after each seed to answer the question: _who is actually in trouble right now?_
 
+## Usage
+
+Visit [https://lcqtracker.vercel.app](https://lcqtracker.vercel.app), where it updates in real time for the currently active event!
+
 ## Monte Carlo
 
 Each event state is simulated 10,000 times. For each simulation, players are ranked per seed based on a power score derived from their Elo, win rate, best time, and average completion time. Players with a large gap between their best and average time are more likely to DNF in any given seed. Eliminations are applied at the scheduled cut points, and the top 4 finishers qualify.
@@ -43,7 +47,3 @@ The model has been backtested across Seasons 7–10 for both LCQ and MSS:
 - **0 safe violations** — no player flagged as safe was subsequently eliminated
 
 Calibration is slightly overconfident in the 10–80% survival range (actual rates run ~3–6% below predicted), likely due to underestimating DNF variance in the competitive field.
-
-## Usage
-
-Visit [https://lcqtracker.vercel.app](https://lcqtracker.vercel.app), where it updates in real time for the currently active event!
