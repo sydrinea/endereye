@@ -10,3 +10,6 @@ dist
 
 # API caching
 archive
+
+# Admin
+PRE_EVENT_CHECKLIST.md
