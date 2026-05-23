@@ -4,7 +4,9 @@ import { applyElimination, runFullHeatmapSimulation, toSimPlayer } from './simul
 import { BracketEntry } from '../api/types'
 import { ELIMINATION_SCHEDULE } from './config'
 
-export type PlayerView = EventPlayer & BracketEntry & PlayerOdds & { rank: number; prevRank: number | null }
+export type PlayerView = EventPlayer &
+  BracketEntry &
+  PlayerOdds & { rank: number; prevRank: number | null }
 
 export function calculatePoints(b: BracketEntry, seed: number): number {
   return (
@@ -48,21 +50,20 @@ export function buildPlayerViews(
 ): PlayerView[] {
   const playerLookup = new Map(data.players.map((p) => [p.uuid, p]))
 
-  return data.brackets
-    .map((b) => {
-      const rank = b.ranks[b.ranks.length - 1] ?? null
-      const prevRank = b.ranks.length >= 2 ? b.ranks[b.ranks.length - 2] : null
-      return { rank, prevRank, b }
-    })
-    .filter(({ rank }) => rank !== null)
-    .sort((a, b) => a.rank! - b.rank!)
-    .map(({ rank, prevRank, b }) => {
-      const player = playerLookup.get(b.uuid)
-      if (!player) throw new Error(`Player ${b.uuid} not found in players list`)
-      const odds = playerOdds[b.uuid]
-      if (!odds) throw new Error(`No odds computed for player ${b.uuid}`)
-      return { ...player, ...b, ...odds, rank: rank!, prevRank } as PlayerView
-    })
+  // Sort by current points desc, then bonus desc as tiebreaker.
+  // We compute rank dynamically so overrides and eliminated-player ordering
+  // are always consistent with the actual point totals.
+  const sorted = [...data.brackets].sort((a, b) => b.point - a.point || b.bonus - a.bonus)
+
+  return sorted.map((b, i) => {
+    const rank = i + 1
+    const prevRank = b.ranks.length >= 2 ? b.ranks[b.ranks.length - 2] : null
+    const player = playerLookup.get(b.uuid)
+    if (!player) throw new Error(`Player ${b.uuid} not found in players list`)
+    const odds = playerOdds[b.uuid]
+    if (!odds) throw new Error(`No odds computed for player ${b.uuid}`)
+    return { ...player, ...b, ...odds, rank, prevRank } as PlayerView
+  })
 }
 
 export function runHeatmapSimulation(
