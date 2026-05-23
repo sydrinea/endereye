@@ -1,16 +1,16 @@
 import Ranked from '@/components/icons/Ranked'
 import { Countdown } from './Countdown'
 import { PastEventCard } from './PastEventCard'
-import type { EventConfig } from '../events.config'
+import type { EventConfig } from '../../lib/events-config'
 
 interface Props {
-  event: EventConfig
+  event: EventConfig | null
   pastEvents: EventConfig[]
   isOver?: boolean
 }
 
 export function HeroSection({ event, pastEvents, isOver = false }: Props) {
-  const dateLabel = event.startDate.toLocaleDateString('en-US', {
+  const dateLabel = event?.startDate.toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
@@ -21,11 +21,17 @@ export function HeroSection({ event, pastEvents, isOver = false }: Props) {
     <main className="min-h-[calc(100vh-4rem)] flex flex-col">
       <section className="flex-1 flex flex-col items-center justify-center gap-8 px-6 text-center">
         <Ranked size={128} />
-        <div className="flex flex-col items-center gap-2">
-          <h1 className="font-display text-4xl lg:text-6xl text-zinc-100">{event.label}</h1>
-          <p className="text-zinc-500">{dateLabel} · 11am ET</p>
-        </div>
-        <Countdown target={event.startDate} isOver={isOver} />
+        {event ? (
+          <>
+            <div className="flex flex-col items-center gap-2">
+              <h1 className="font-display text-4xl lg:text-6xl text-zinc-100">{event.label}</h1>
+              <p className="text-zinc-500">{dateLabel} · 11am ET</p>
+            </div>
+            <Countdown target={event.startDate} isOver={isOver} />
+          </>
+        ) : (
+          <p className="text-zinc-500">No upcoming events</p>
+        )}
       </section>
 
       {pastEvents.length > 0 && (

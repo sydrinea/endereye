@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { FetchError } from '../errors'
 import {
+  LeaderboardSchema,
   Match,
   MatchFilter,
   MatchList,
@@ -18,6 +19,16 @@ export const API_BASE = {
 } as const
 
 const OLDEST_MATCH_ID = 100876
+
+const LEADERBOARD_ROUTE = `${API_BASE.MCSR_PUBLIC}/leaderboard` as const
+
+export async function fetchCurrentSeason(): Promise<number> {
+  const res = await fetch(LEADERBOARD_ROUTE)
+  if (!res.ok) throw new FetchError(`[${LEADERBOARD_ROUTE}] Failed to fetch: ${res.status}`)
+  const json = (await res.json()) as any
+  const data = LeaderboardSchema.parse(json.data)
+  return data.season.number
+}
 
 export const ROUTES = {
   MATCHES: (filter?: MatchFilter) => {

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import type { EventConfig } from '../events.config'
+import type { EventConfig } from '../../lib/events-config'
 
 export function PastEventCard({ event }: { event: EventConfig }) {
   return (

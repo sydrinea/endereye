@@ -12,7 +12,7 @@
   "dependencies": {
     "@endereye/core": "*",
     "@endereye/image": "*",
-    "@endereye/discovery": "*",
+    "@aws-sdk/client-s3": "^3",
     "citty": "^0.1.6",
     "consola": "^3.4.2"
   },

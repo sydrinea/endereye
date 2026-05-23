@@ -1,6 +1,8 @@
-import { loadEventData } from '@endereye/discovery'
+import { getEventContext } from '../../../lib/event-data'
 import { DashboardWrapper } from '@/app/views/DashboardWrapper'
-import { EVENTS, ACTIVE_EVENT } from '@/app/events.config'
+import { getAllEvents, getActiveEvent } from '@/lib/events-config'
+
+export const revalidate = false
 
 export default async function Page({
   params,
@@ -12,15 +14,37 @@ export default async function Page({
   const { season: seasonParam } = await params
   const season = Number(seasonParam)
 
-  const event = EVENTS.find(e => e.kind === 'lcq' && e.season === season)
+  const [allEvents, activeEvent] = await Promise.all([getAllEvents(), getActiveEvent()])
+  const event = allEvents.find((e) => e.kind === 'lcq' && e.season === season)
   const eventLabel = event?.label ?? `S${season} LCQ`
-  const isActive = event?.slug === ACTIVE_EVENT.slug
+  const isActive = event?.slug === activeEvent?.slug
 
-  const eventData = await loadEventData('lcq', season)
+  const eventData = await getEventContext(
+    'lcq',
+    season,
+    event?.prefix ?? `lcq/${season}`,
+    event?.qualifyCount,
+  )
+
+  if (!eventData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen text-neutral-400 text-sm">
+        No data found for Season {season} LCQ.
+      </div>
+    )
+  }
 
   const { seed: seedParam } = await searchParams
   const defaultSeed = Math.max(eventData.currentRound - 1, 0)
   const seed = Math.min(Math.max(Number(seedParam ?? defaultSeed), 0), 10)
 
-  return <DashboardWrapper eventData={eventData} seed={seed} eventLabel={eventLabel} live={isActive} backHref="/" />
+  return (
+    <DashboardWrapper
+      eventData={eventData}
+      seed={seed}
+      eventLabel={eventLabel}
+      live={isActive}
+      backHref="/"
+    />
+  )
 }

@@ -27,6 +27,3 @@ export interface EventContext {
   readonly qualifyCount?: number
 }
 
-export async function createEventContext(_kind: EventKind, _season: number): Promise<EventContext> {
-  throw new Error('createEventContext: fetchEvent API endpoint no longer available. Use loadEventData from @endereye/discovery or buildLiveEventData instead.')
-}

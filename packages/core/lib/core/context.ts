@@ -1,14 +1,10 @@
 import type { PlayerOdds } from './odds'
-import { createEventContext, EventContext, EventPlayer } from '../context/event'
+import { EventContext, EventPlayer } from '../context/event'
 import { applyElimination, runFullHeatmapSimulation, toSimPlayer } from './simulation'
-import { BracketEntry, EventKind } from '../api/types'
+import { BracketEntry } from '../api/types'
 import { ELIMINATION_SCHEDULE } from './config'
 
 export type PlayerView = EventPlayer & BracketEntry & PlayerOdds & { rank: number; prevRank: number | null }
-
-export async function createEventData(kind: EventKind, season: number): Promise<EventContext> {
-  return createEventContext(kind, season)
-}
 
 export function calculatePoints(b: BracketEntry, seed: number): number {
   return (

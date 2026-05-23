@@ -32,7 +32,6 @@
   ],
   "exclude": ["node_modules"],
   "references": [
-    { "path": "../../packages/core" },
-    { "path": "../../packages/discovery" }
+    { "path": "../../packages/core" }
   ]
 }

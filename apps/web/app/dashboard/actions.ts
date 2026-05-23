@@ -1,0 +1,154 @@
+'use server'
+
+import { cookies } from 'next/headers'
+import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import {
+  fetchMatch,
+  fetchPhaseLeaderboard,
+  fetchCurrentSeason,
+  buildEvent,
+  computeBonusMap,
+  enrichEventPlayers,
+} from '@endereye/core'
+import type { EventKind, Match } from '@endereye/core'
+import { getR2Object, putR2Object, deleteR2Object } from '../../lib/r2'
+import { putR2EventsConfig, type R2EventConfig } from '../../lib/events-config'
+
+export async function loginAction(_prevState: unknown, formData: FormData) {
+  const secret = formData.get('secret') as string
+  if (!process.env.DASHBOARD_SECRET) throw new Error('DASHBOARD_SECRET not configured')
+  if (secret !== process.env.DASHBOARD_SECRET) {
+    return { error: 'Invalid secret' }
+  }
+  const cookieStore = await cookies()
+  cookieStore.set('dashboard_auth', secret, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 30,
+  })
+  redirect('/dashboard')
+}
+
+export async function uploadMatchesAction(
+  season: number,
+  prefix: string,
+  matchIds: number[],
+  noBonus: boolean,
+  kind: EventKind,
+  qualifyCount?: number,
+): Promise<{ ok: true; matchCount: number; newCount: number } | { ok: false; error: string }> {
+  if (matchIds.length === 0) return { ok: false, error: 'No match IDs provided' }
+
+  let newMatches: Match[]
+  try {
+    newMatches = await Promise.all(matchIds.map((id) => fetchMatch(id)))
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Failed to fetch matches' }
+  }
+
+  const existing = (await getR2Object<Match[]>(`${prefix}.raw.json`)) ?? []
+
+  // Merge + deduplicate by id, sort ascending (ID order = chronological)
+  const byId = new Map([...existing, ...newMatches].map((m) => [m.id, m]))
+  const allMatches = [...byId.values()].sort((a, b) => a.id - b.id)
+
+  const bonusMap = noBonus
+    ? new Map(allMatches[0].players.map((p) => [p.uuid, 0]))
+    : computeBonusMap(
+        allMatches,
+        await fetchPhaseLeaderboard(season, season === (await fetchCurrentSeason())),
+      )
+
+  const event = buildEvent(allMatches, bonusMap)
+
+  const existingPlayers = await getR2Object(`${prefix}.players.json`)
+
+  await Promise.all([
+    putR2Object(`${prefix}.raw.json`, allMatches),
+    putR2Object(`${prefix}.event.json`, { ...event, qualifyCount }),
+    existingPlayers === null
+      ? enrichEventPlayers(event, kind, season).then((players) =>
+          putR2Object(`${prefix}.players.json`, players),
+        )
+      : Promise.resolve(),
+  ])
+
+  revalidatePath('/')
+  revalidatePath('/live')
+  revalidatePath(`/lcq/${season}`)
+  revalidatePath(`/special/2026/worlds`)
+
+  return { ok: true, matchCount: allMatches.length, newCount: newMatches.length }
+}
+
+export async function getEventMatchIdsAction(prefix: string): Promise<number[]> {
+  const raw = await getR2Object<Match[]>(`${prefix}.raw.json`)
+  if (!raw) return []
+  return raw.map((m) => m.id).sort((a, b) => a - b)
+}
+
+export async function deleteMatchAction(
+  season: number,
+  prefix: string,
+  matchId: number,
+  noBonus: boolean,
+  qualifyCount?: number,
+): Promise<{ ok: true; matchCount: number } | { ok: false; error: string }> {
+  const existing = await getR2Object<Match[]>(`${prefix}.raw.json`)
+  if (!existing) return { ok: false, error: 'No match data found in R2' }
+
+  const remaining = existing.filter((m) => m.id !== matchId)
+
+  if (remaining.length === 0) {
+    await Promise.all([
+      putR2Object(`${prefix}.raw.json`, []),
+      deleteR2Object(`${prefix}.event.json`),
+    ])
+  } else {
+    const bonusMap = noBonus
+      ? new Map(remaining[0].players.map((p) => [p.uuid, 0]))
+      : computeBonusMap(remaining, await fetchPhaseLeaderboard(season, season >= 11))
+    const event = buildEvent(remaining, bonusMap)
+    await Promise.all([
+      putR2Object(`${prefix}.raw.json`, remaining),
+      putR2Object(`${prefix}.event.json`, { ...event, qualifyCount }),
+    ])
+  }
+
+  revalidatePath('/')
+  revalidatePath('/live')
+  revalidatePath(`/lcq/${season}`)
+  revalidatePath(`/special/2026/worlds`)
+
+  return { ok: true, matchCount: remaining.length }
+}
+
+export async function updateEventsConfigAction(
+  configJson: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  let parsed: R2EventConfig[]
+  try {
+    parsed = JSON.parse(configJson) as R2EventConfig[]
+    if (!Array.isArray(parsed)) throw new Error('Config must be a JSON array')
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Invalid JSON' }
+  }
+  await putR2EventsConfig(parsed)
+  revalidatePath('/')
+  return { ok: true }
+}
+
+export async function deleteEventAction(
+  slug: string,
+): Promise<{ ok: true; configJson: string } | { ok: false; error: string }> {
+  const { getR2EventsConfig } = await import('../../lib/events-config')
+  const configs = await getR2EventsConfig()
+  if (!configs) return { ok: false, error: 'No events config found in R2' }
+  const updated = configs.filter((e) => e.slug !== slug)
+  await putR2EventsConfig(updated)
+  revalidatePath('/')
+  return { ok: true, configJson: JSON.stringify(updated, null, 2) }
+}
