@@ -283,10 +283,15 @@ function rankPlayers(alive: SimPlayer[], round: number, stats: LobbyStats) {
 function simulateRound(alive: SimPlayer[], round: number, stats: LobbyStats): SimPlayer[] {
   const scores = getAvailableScores(alive.length)
   const ranked = rankPlayers(alive, round, stats)
-  return alive.map((p, i) => ({
-    ...p,
-    point: p.point + scores[ranked.findIndex((r) => r.idx === i)],
-  }))
+
+  return alive.map((p, i) => {
+    const rankIndex = ranked.findIndex((r) => r.idx === i)
+    const earnedPoints = ranked[rankIndex].val === -Infinity ? 0 : (scores[rankIndex] ?? 0)
+    return {
+      ...p,
+      point: p.point + earnedPoints,
+    }
+  })
 }
 
 function toMCResults(
@@ -440,7 +445,7 @@ export function runScenarioAnalysis(
 
   for (let i = 0; i < iterations; i++) {
     let alive = players.map((p) => ({ ...p }))
-    let placements: Record<string, number> = {}
+    const placements: Record<string, number> = {}
 
     for (let r = currentRound; r <= nextCutEntry.afterSeed; r++) {
       if (alive.length === 0) break
@@ -456,7 +461,7 @@ export function runScenarioAnalysis(
             placements[others[entry.idx].uuid] = place + 1
           })
           alive = alive.map((p) => {
-            if (p.uuid === targetUuid) return { ...p, point: p.point + (scores[n - 1] ?? 0) }
+            if (p.uuid === targetUuid) return { ...p, point: p.point }
             const oIdx = others.findIndex((o) => o.uuid === p.uuid)
             const rank = otherRanked.findIndex((e) => e.idx === oIdx)
             return { ...p, point: p.point + (otherScores[rank] ?? 0) }

@@ -147,7 +147,7 @@ export function SurvivalScenariosModal({
 
         <div className="max-h-112 overflow-y-auto">
           {/* Survival scenarios */}
-          {showFailure && <SectionHeader label={`If player completes`} />}
+          {showFailure && <SectionHeader label={`If ${view.nickname} completes`} />}
           <div className="px-5 py-1">
             {snapScenarios.length === 0 ? (
               <p className="text-sm text-zinc-500 text-center py-6">
@@ -163,7 +163,7 @@ export function SurvivalScenariosModal({
           {/* Failure scenarios */}
           {showFailure && (
             <>
-              <SectionHeader label="If player DNF" />
+              <SectionHeader label={`If ${view.nickname} DNF`} />
               <div className="px-5 py-1">
                 {snapFailure.map((s, i) => (
                   <ScenarioRow key={i} scenario={s} nicknameOf={nicknameOf} />

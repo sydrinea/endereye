@@ -3,7 +3,13 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { use, useState } from 'react'
-import { buildPlayerViews, computeHistoricalData, computePlayerOdds, computeSurvivalScenarios, computeFailureScenarios } from '@endereye/core'
+import {
+  buildPlayerViews,
+  computeHistoricalData,
+  computePlayerOdds,
+  computeSurvivalScenarios,
+  computeFailureScenarios,
+} from '@endereye/core'
 import type { PlayerView, EventContext, SurvivalScenario } from '@endereye/core'
 import { DashboardHeader, CutBanner, Surface } from '@/components/layout'
 import { Table, PlayerFilter } from '@/components/ui'
@@ -88,7 +94,11 @@ export function DashboardClient({
   backHref?: string
 }) {
   const [filteredNicknames, setFilteredNicknames] = useState<string[]>([])
-  const [scenarioTarget, setScenarioTarget] = useState<{ view: PlayerView; scenarios: SurvivalScenario[]; failureScenarios: SurvivalScenario[] } | null>(null)
+  const [scenarioTarget, setScenarioTarget] = useState<{
+    view: PlayerView
+    scenarios: SurvivalScenario[]
+    failureScenarios: SurvivalScenario[]
+  } | null>(null)
   const [state, setState] = useState(() => ({
     seed,
     promise: new Promise<PlayerView[]>((resolve) =>
@@ -118,15 +128,15 @@ export function DashboardClient({
   function scenarioCallback(nickname: string) {
     const view = viewByNickname.get(nickname)
     if (!view) return undefined
-    const eligible = view.status === 'danger' || (view.status === 'safe' && typeof view.clinchPlace === 'number')
+    const eligible =
+      view.status === 'danger' || (view.status === 'safe' && typeof view.clinchPlace === 'number')
     if (!eligible) return undefined
     return async () => {
       await new Promise<void>((resolve) => setTimeout(resolve, 0))
       const ctx = computeHistoricalData(eventData, seed)
       const scenarios = computeSurvivalScenarios(ctx, view.uuid)
-      const failureScenarios = typeof view.clinchPlace === 'number'
-        ? computeFailureScenarios(ctx, view.uuid)
-        : []
+      const failureScenarios =
+        typeof view.clinchPlace === 'number' ? computeFailureScenarios(ctx, view.uuid) : []
       setScenarioTarget({ view, scenarios, failureScenarios })
     }
   }
@@ -217,7 +227,11 @@ export function DashboardClient({
           <div className="border-b border-zinc-800" />
           <Table cols={COLS}>
             {aboveCut.map((row) => (
-              <StandingsRow key={row.nickname} row={row} onSelectScenarios={scenarioCallback(row.nickname)} />
+              <StandingsRow
+                key={row.nickname}
+                row={row}
+                onSelectScenarios={scenarioCallback(row.nickname)}
+              />
             ))}
           </Table>
 
@@ -226,7 +240,11 @@ export function DashboardClient({
               <CutBanner label="Next Elimination" detail={cutLabel} />
               <Table cols={COLS}>
                 {belowCut.map((row) => (
-                  <StandingsRow key={row.nickname} row={row} onSelectScenarios={scenarioCallback(row.nickname)} />
+                  <StandingsRow
+                    key={row.nickname}
+                    row={row}
+                    onSelectScenarios={scenarioCallback(row.nickname)}
+                  />
                 ))}
               </Table>
             </>

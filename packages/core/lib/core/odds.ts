@@ -37,7 +37,12 @@ function getCutThreshold(cut: EliminationCut, sorted: SimPlayer[]): number {
   return sorted[Math.min(cut.keepTop - 1, sorted.length - 1)]?.point ?? 0
 }
 
-function deriveStatus(bracket: BracketEntry, isSafe: boolean, isOver: boolean, isQualified = false): PlayerStatus {
+function deriveStatus(
+  bracket: BracketEntry,
+  isSafe: boolean,
+  isOver: boolean,
+  isQualified = false,
+): PlayerStatus {
   if (bracket.eliminated) return 'eliminated'
   if (isOver) return isQualified ? 'qualified' : 'eliminated'
   if (isSafe) return 'safe'
@@ -60,16 +65,9 @@ function computeActiveOdds(
   | 'winProbability'
   | 'survivalProbability'
 > {
-  const canStillWin = canStillWinDeterministic(
-    uuid,
-    alivePlayers,
-    currentRound,
-    cuts,
-    qualifyCount,
-  )
+  const canStillWin = canStillWinDeterministic(uuid, alivePlayers, currentRound, cuts, qualifyCount)
   const isSafeAtNextCut =
-    canStillWin &&
-    isSafeAtNextCutDeterministic(uuid, alivePlayers, currentRound, cuts)
+    canStillWin && isSafeAtNextCutDeterministic(uuid, alivePlayers, currentRound, cuts)
   const clinch = getClinchScore(uuid, alivePlayers, currentRound, cuts)
   const mc = mcResults[uuid]
   return {
@@ -131,7 +129,10 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
 
   const qualifiedUuids = isOver
     ? new Set(
-        [...alivePlayers].sort((a, b) => b.point - a.point).slice(0, qualifyCount).map((p) => p.uuid),
+        [...alivePlayers]
+          .sort((a, b) => b.point - a.point)
+          .slice(0, qualifyCount)
+          .map((p) => p.uuid),
       )
     : null
 
@@ -153,14 +154,26 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
           }
         : isOver
           ? computeFinishedOdds(bracket)
-          : computeActiveOdds(bracket.uuid, alivePlayers, currentRound, mcResults, qualifyCount, effectiveSchedule)
+          : computeActiveOdds(
+              bracket.uuid,
+              alivePlayers,
+              currentRound,
+              mcResults,
+              qualifyCount,
+              effectiveSchedule,
+            )
 
       return [
         bracket.uuid,
         {
           uuid: bracket.uuid,
           cutDelta: bracket.point - cutThresholdPoint,
-          status: deriveStatus(bracket, computed.isSafeAtNextCut, isOver, qualifiedUuids?.has(bracket.uuid)),
+          status: deriveStatus(
+            bracket,
+            computed.isSafeAtNextCut,
+            isOver,
+            qualifiedUuids?.has(bracket.uuid),
+          ),
           power,
           ...computed,
         },
@@ -191,7 +204,13 @@ export function computeSurvivalScenarios(
   const target = alivePlayers.find((p) => p.uuid === targetUuid)
   if (!target) return []
 
-  return runScenarioAnalysis(targetUuid, alivePlayers, currentRound, effectiveSchedule, qualifyCount)
+  return runScenarioAnalysis(
+    targetUuid,
+    alivePlayers,
+    currentRound,
+    effectiveSchedule,
+    qualifyCount,
+  )
 }
 
 export function computeFailureScenarios(
@@ -216,5 +235,13 @@ export function computeFailureScenarios(
   const target = alivePlayers.find((p) => p.uuid === targetUuid)
   if (!target) return []
 
-  return runScenarioAnalysis(targetUuid, alivePlayers, currentRound, effectiveSchedule, qualifyCount, 20000, true)
+  return runScenarioAnalysis(
+    targetUuid,
+    alivePlayers,
+    currentRound,
+    effectiveSchedule,
+    qualifyCount,
+    20000,
+    true,
+  )
 }
