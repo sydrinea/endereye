@@ -1,7 +1,6 @@
 import Ranked from '@/components/icons/Ranked'
 import { Countdown } from './Countdown'
 import { PastEventCard } from './PastEventCard'
-import { UpcomingEventCard } from './UpcomingEventCard'
 import type { EventConfig } from '../../lib/events-config'
 
 interface Props {
@@ -11,7 +10,7 @@ interface Props {
   isOver?: boolean
 }
 
-export function HeroSection({ event, pastEvents, upcomingEvents, isOver = false }: Props) {
+export function HeroSection({ event, pastEvents, isOver = false }: Props) {
   const dateLabel = event?.startDate.toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
@@ -35,15 +34,6 @@ export function HeroSection({ event, pastEvents, upcomingEvents, isOver = false 
           <p className="text-zinc-500">No upcoming events</p>
         )}
       </section>
-
-      {upcomingEvents.length > 0 && (
-        <section className="flex flex-col items-center gap-3 pb-8 px-6">
-          <p className="text-xs text-zinc-600 uppercase tracking-widest mb-1">Upcoming Events</p>
-          {upcomingEvents.map((e) => (
-            <UpcomingEventCard key={e.slug} event={e} />
-          ))}
-        </section>
-      )}
 
       {pastEvents.length > 0 && (
         <section className="flex flex-col items-center gap-3 pb-16 px-6">
