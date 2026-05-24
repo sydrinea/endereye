@@ -48,6 +48,7 @@ function computeActiveOdds(
   currentRound: number,
   mcResults: Record<string, { winProbability: number; survivalProbability: number }>,
   qualifyCount: number,
+  cuts: EliminationCut[],
 ): Pick<
   PlayerOdds,
   | 'canStillWin'
@@ -61,13 +62,13 @@ function computeActiveOdds(
     uuid,
     alivePlayers,
     currentRound,
-    ELIMINATION_SCHEDULE,
+    cuts,
     qualifyCount,
   )
   const isSafeAtNextCut =
     canStillWin &&
-    isSafeAtNextCutDeterministic(uuid, alivePlayers, currentRound, ELIMINATION_SCHEDULE)
-  const clinch = getClinchScore(uuid, alivePlayers, currentRound, ELIMINATION_SCHEDULE)
+    isSafeAtNextCutDeterministic(uuid, alivePlayers, currentRound, cuts)
+  const clinch = getClinchScore(uuid, alivePlayers, currentRound, cuts)
   const mc = mcResults[uuid]
   return {
     canStillWin,
@@ -104,7 +105,11 @@ function computeFinishedOdds(
 export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds> {
   const { currentRound, brackets, players } = ctx
   const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
-  const lastSeed = Math.max(...ELIMINATION_SCHEDULE.map((c) => c.afterSeed))
+  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
+  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
+    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
+  )
+  const lastSeed = Math.max(...effectiveSchedule.map((c) => c.afterSeed))
   const isOver = currentRound > lastSeed
 
   const playerLookup = new Map(players.map((p) => [p.uuid, p]))
@@ -113,18 +118,13 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
     .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
 
   const sortedAlive = [...alivePlayers].sort((a, b) => b.point - a.point)
-  const nextCut = ELIMINATION_SCHEDULE.find((c) => c.afterSeed >= currentRound)
-  const lastCut = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
-  const effectiveCut =
-    nextCut && nextCut === lastCut && 'keepTop' in nextCut
-      ? { ...nextCut, keepTop: qualifyCount }
-      : nextCut
+  const nextCut = effectiveSchedule.find((c) => c.afterSeed >= currentRound)
   const cutThresholdPoint =
-    effectiveCut && alivePlayers.length > 0 ? getCutThreshold(effectiveCut, sortedAlive) : 0
+    nextCut && alivePlayers.length > 0 ? getCutThreshold(nextCut, sortedAlive) : 0
 
   const mcResults =
     !isOver && currentRound >= 1 && alivePlayers.length > 0
-      ? runMonteCarlo(alivePlayers, currentRound, ELIMINATION_SCHEDULE, qualifyCount)
+      ? runMonteCarlo(alivePlayers, currentRound, effectiveSchedule, qualifyCount)
       : {}
 
   const qualifiedUuids = isOver
@@ -151,7 +151,7 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
           }
         : isOver
           ? computeFinishedOdds(bracket)
-          : computeActiveOdds(bracket.uuid, alivePlayers, currentRound, mcResults, qualifyCount)
+          : computeActiveOdds(bracket.uuid, alivePlayers, currentRound, mcResults, qualifyCount, effectiveSchedule)
 
       return [
         bracket.uuid,

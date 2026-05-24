@@ -121,6 +121,7 @@ export function DashboardClient({
   }
 
   const nextCut = CUT_SEEDS.find((s) => s > seed)
+  const qualifyCount = eventData.qualifyCount ?? 4
   const cutKeep =
     nextCut === 5
       ? Math.ceil(rows.length / 2)
@@ -131,7 +132,7 @@ export function DashboardClient({
           : nextCut === 9
             ? 6
             : nextCut === 10
-              ? 4
+              ? qualifyCount
               : undefined
 
   const allAboveCut =
