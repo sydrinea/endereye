@@ -35,9 +35,9 @@ function getCutThreshold(cut: EliminationCut, sorted: SimPlayer[]): number {
   return sorted[Math.min(cut.keepTop - 1, sorted.length - 1)]?.point ?? 0
 }
 
-function deriveStatus(bracket: BracketEntry, isSafe: boolean, isOver: boolean): PlayerStatus {
+function deriveStatus(bracket: BracketEntry, isSafe: boolean, isOver: boolean, isQualified = false): PlayerStatus {
   if (bracket.eliminated) return 'eliminated'
-  if (isOver) return 'qualified'
+  if (isOver) return isQualified ? 'qualified' : 'eliminated'
   if (isSafe) return 'safe'
   return 'danger'
 }
@@ -104,7 +104,8 @@ function computeFinishedOdds(
 export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds> {
   const { currentRound, brackets, players } = ctx
   const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
-  const isOver = currentRound > 10
+  const lastSeed = Math.max(...ELIMINATION_SCHEDULE.map((c) => c.afterSeed))
+  const isOver = currentRound > lastSeed
 
   const playerLookup = new Map(players.map((p) => [p.uuid, p]))
   const alivePlayers = brackets
@@ -113,13 +114,24 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
 
   const sortedAlive = [...alivePlayers].sort((a, b) => b.point - a.point)
   const nextCut = ELIMINATION_SCHEDULE.find((c) => c.afterSeed >= currentRound)
+  const lastCut = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
+  const effectiveCut =
+    nextCut && nextCut === lastCut && 'keepTop' in nextCut
+      ? { ...nextCut, keepTop: qualifyCount }
+      : nextCut
   const cutThresholdPoint =
-    nextCut && alivePlayers.length > 0 ? getCutThreshold(nextCut, sortedAlive) : 0
+    effectiveCut && alivePlayers.length > 0 ? getCutThreshold(effectiveCut, sortedAlive) : 0
 
   const mcResults =
     !isOver && currentRound >= 1 && alivePlayers.length > 0
       ? runMonteCarlo(alivePlayers, currentRound, ELIMINATION_SCHEDULE, qualifyCount)
       : {}
+
+  const qualifiedUuids = isOver
+    ? new Set(
+        [...alivePlayers].sort((a, b) => b.point - a.point).slice(0, qualifyCount).map((p) => p.uuid),
+      )
+    : null
 
   const lobbyStats = calculateLobbyStats(alivePlayers)
 
@@ -146,7 +158,7 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
         {
           uuid: bracket.uuid,
           cutDelta: bracket.point - cutThresholdPoint,
-          status: deriveStatus(bracket, computed.isSafeAtNextCut, isOver),
+          status: deriveStatus(bracket, computed.isSafeAtNextCut, isOver, qualifiedUuids?.has(bracket.uuid)),
           power,
           ...computed,
         },

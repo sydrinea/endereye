@@ -79,5 +79,11 @@ export function runHeatmapSimulation(
       if (!p) throw new Error(`Player ${b.uuid} not found in players list`)
       return toSimPlayer(p, b.point)
     })
-  return runFullHeatmapSimulation(alivePlayers, currentRound, ELIMINATION_SCHEDULE, iterations)
+  return runFullHeatmapSimulation(
+    alivePlayers,
+    currentRound,
+    ELIMINATION_SCHEDULE,
+    iterations,
+    data.qualifyCount,
+  )
 }

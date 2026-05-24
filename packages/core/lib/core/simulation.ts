@@ -175,7 +175,8 @@ export function isSafeAtNextCutDeterministic(
   cuts: EliminationCut[],
   fixedNextScore: number | null = null,
 ): boolean {
-  if (currentRound > 10) return true
+  const lastSeed = Math.max(...cuts.map((c) => c.afterSeed), currentRound)
+  if (currentRound > lastSeed) return true
   const nextCut = cuts.find((c) => c.afterSeed >= currentRound)
   if (!nextCut) return true
 
@@ -311,8 +312,9 @@ export function runMonteCarlo(
   const ids = players.map((p) => p.uuid)
   const winCount = new Map(ids.map((id) => [id, 0]))
   const surviveCount = new Map(ids.map((id) => [id, 0]))
+  const lastSeed = Math.max(...cuts.map((c) => c.afterSeed), currentRound)
 
-  if (currentRound > 10) {
+  if (currentRound > lastSeed) {
     const winners = [...players].sort((a, b) => b.point - a.point).slice(0, targetRank)
     for (const id of ids) surviveCount.set(id, iterations)
     for (const p of winners) winCount.set(p.uuid, iterations)
@@ -325,7 +327,7 @@ export function runMonteCarlo(
   for (let i = 0; i < iterations; i++) {
     let alive = players.map((p) => ({ ...p }))
 
-    for (let r = currentRound; r <= 10; r++) {
+    for (let r = currentRound; r <= lastSeed; r++) {
       if (alive.length === 0) break
       alive = simulateRound(alive, r, stats)
       const cut = cuts.find((c) => c.afterSeed === r)
@@ -351,9 +353,11 @@ export function runFullHeatmapSimulation(
   currentRound: number,
   cuts: EliminationCut[],
   iterations = 10000,
+  qualifyCount = 4,
 ): Record<string, Record<number, number>> {
   const ids = players.map((p) => p.uuid)
   const remainingCuts = cuts.filter((c) => c.afterSeed >= currentRound)
+  const lastSeed = Math.max(...cuts.map((c) => c.afterSeed), currentRound)
 
   const survivalCounts = new Map(
     ids.map((id) => {
@@ -363,16 +367,16 @@ export function runFullHeatmapSimulation(
     }),
   )
 
-  if (currentRound > 10) {
-    const top4 = [...players].sort((a, b) => b.point - a.point).slice(0, 4)
-    for (const p of top4) survivalCounts.get(p.uuid)![999] = iterations
+  if (currentRound > lastSeed) {
+    const topN = [...players].sort((a, b) => b.point - a.point).slice(0, qualifyCount)
+    for (const p of topN) survivalCounts.get(p.uuid)![999] = iterations
   } else {
     const stats = calculateLobbyStats(players)
 
     for (let i = 0; i < iterations; i++) {
       let alive = players.map((p) => ({ ...p }))
 
-      for (let r = currentRound; r <= 10; r++) {
+      for (let r = currentRound; r <= lastSeed; r++) {
         if (alive.length === 0) break
         alive = simulateRound(alive, r, stats)
 
@@ -382,8 +386,8 @@ export function runFullHeatmapSimulation(
           for (const p of alive) survivalCounts.get(p.uuid)![r]++
         }
 
-        if (r === 10) {
-          for (const p of [...alive].sort((a, b) => b.point - a.point).slice(0, 4))
+        if (r === lastSeed) {
+          for (const p of [...alive].sort((a, b) => b.point - a.point).slice(0, qualifyCount))
             survivalCounts.get(p.uuid)![999]++
         }
       }

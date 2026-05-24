@@ -1,3 +1,4 @@
+import './env'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { computePlayerOdds, runHeatmapSimulation, type EventKind, type EventContext, type EventPlayer, type BracketEntry } from '@endereye/core'
 import { renderSurvivalHeatmap, copyPngToClipboard } from '@endereye/image'
@@ -154,6 +155,7 @@ const main = defineCommand({
       results: heatmap,
       players: alive.map((p) => ({ uuid: p.uuid, nickname: p.nickname, eloRank: p.eloRank })),
       iterations,
+      qualifyCount: state.qualifyCount,
     })
     copyPngToClipboard(png)
     log.success(`Copied image to clipboard`)

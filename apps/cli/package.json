@@ -7,7 +7,9 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "validate": "node dist/validate.js",
+    "patch": "node dist/patch.js"
   },
   "dependencies": {
     "@endereye/core": "*",

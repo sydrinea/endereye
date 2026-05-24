@@ -21,10 +21,11 @@ interface RenderOptions {
   results: Record<string, Record<number, number>>
   players: Array<{ uuid: string; nickname: string; eloRank: number | null }>
   iterations: number
+  qualifyCount?: number
 }
 
 export async function renderSurvivalHeatmap(opts: RenderOptions): Promise<Buffer<ArrayBufferLike>> {
-  const { season, kind, currentRound, results, players, iterations } = opts
+  const { season, kind, currentRound, results, players, iterations, qualifyCount = 4 } = opts
 
   const remainingCuts = ELIMINATION_SCHEDULE.filter((c) => c.afterSeed >= currentRound)
 
@@ -54,15 +55,21 @@ export async function renderSurvivalHeatmap(opts: RenderOptions): Promise<Buffer
     minWidth: 500,
   })
 
-  const cutColumns = remainingCuts.map((cut) => ({
+  const cutColumns = remainingCuts.map((cut, i) => ({
     cut,
     sublabel:
-      'keepTop' in cut ? `Top ${cut.keepTop}` : cut.rule === 'zero_out' ? 'Zero Out' : 'Top 50%',
+      i === remainingCuts.length - 1 && 'keepTop' in cut
+        ? `Top ${qualifyCount}`
+        : 'keepTop' in cut
+          ? `Top ${cut.keepTop}`
+          : cut.rule === 'zero_out'
+            ? 'Zero Out'
+            : 'Top 50%',
   }))
 
   const svg = await satori(
     <div style={outerShellStyle}>
-      <ImageTitle>{`S${season} ${kind.toUpperCase()} Survival Odds`}</ImageTitle>
+      <ImageTitle>{`S${season} ${kind.toUpperCase()} — Top ${qualifyCount} Survival Odds`}</ImageTitle>
 
       <div style={tableContainerStyle}>
         <HeaderRow
