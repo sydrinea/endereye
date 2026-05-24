@@ -47,6 +47,7 @@ export async function getActiveEvent(): Promise<EventConfig | null> {
   const r2 = await getR2EventsConfig()
   if (!r2 || r2.length === 0) return null
   const now = new Date()
+  now.setHours(0, 0, 0, 0)
   const future = r2
     .map(toEventConfig)
     .filter((e) => e.startDate >= now)
