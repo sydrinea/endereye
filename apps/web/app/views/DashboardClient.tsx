@@ -6,7 +6,7 @@ import { use, useState } from 'react'
 import { buildPlayerViews, computeHistoricalData, computePlayerOdds } from '@endereye/core'
 import type { PlayerView, EventContext } from '@endereye/core'
 import { DashboardHeader, CutBanner, Surface } from '@/components/layout'
-import { Table } from '@/components/ui'
+import { Table, PlayerFilter } from '@/components/ui'
 import { StandingsRow } from './StandingsRow'
 import { EliminatedSection } from './EliminatedSection'
 import type { StandingsRowData, OverrideEntry } from './StandingsRow'
@@ -86,6 +86,7 @@ export function DashboardClient({
   live?: boolean
   backHref?: string
 }) {
+  const [filteredNicknames, setFilteredNicknames] = useState<string[]>([])
   const [state, setState] = useState(() => ({
     seed,
     promise: new Promise<PlayerView[]>((resolve) =>
@@ -103,12 +104,21 @@ export function DashboardClient({
 
   const views = use(promise)
 
+  const allNicknames = views.map((v) => v.nickname)
+
   const rows = views
     .filter((v) => v.status !== 'eliminated')
     .map((v) => toRowData(v, eventData.overrides))
   const eliminatedRows = views
     .filter((v) => v.status === 'eliminated')
     .map((v) => toRowData(v, eventData.overrides))
+
+  function addFilter(nick: string) {
+    setFilteredNicknames((prev) => (prev.includes(nick) ? prev : [...prev, nick]))
+  }
+  function removeFilter(nick: string) {
+    setFilteredNicknames((prev) => prev.filter((n) => n !== nick))
+  }
 
   const nextCut = CUT_SEEDS.find((s) => s > seed)
   const cutKeep =
@@ -124,10 +134,17 @@ export function DashboardClient({
               ? 4
               : undefined
 
-  const aboveCut =
+  const allAboveCut =
     nextCut === 3 ? rows.filter((r) => r.pts > 0) : cutKeep != null ? rows.slice(0, cutKeep) : rows
-  const belowCut =
+  const allBelowCut =
     nextCut === 3 ? rows.filter((r) => r.pts === 0) : cutKeep != null ? rows.slice(cutKeep) : []
+
+  const filterSet = filteredNicknames.length > 0 ? new Set(filteredNicknames) : null
+  const aboveCut = filterSet ? allAboveCut.filter((r) => filterSet.has(r.nickname)) : allAboveCut
+  const belowCut = filterSet ? allBelowCut.filter((r) => filterSet.has(r.nickname)) : allBelowCut
+  const visibleEliminated = filterSet
+    ? eliminatedRows.filter((r) => filterSet.has(r.nickname))
+    : eliminatedRows
 
   const counts = rows.reduce(
     (acc, r) => {
@@ -172,6 +189,13 @@ export function DashboardClient({
       />
       <Surface width="xl">
         <div className="flex flex-col gap-2">
+          <PlayerFilter
+            players={allNicknames}
+            selected={filteredNicknames}
+            onAdd={addFilter}
+            onRemove={removeFilter}
+          />
+          <div className="border-b border-zinc-800" />
           <Table cols={COLS}>
             {aboveCut.map((row) => (
               <StandingsRow key={row.nickname} row={row} />
@@ -189,7 +213,7 @@ export function DashboardClient({
             </>
           )}
 
-          {eliminatedRows.length > 0 && <EliminatedSection rows={eliminatedRows} />}
+          {visibleEliminated.length > 0 && <EliminatedSection rows={visibleEliminated} />}
         </div>
       </Surface>
     </>
