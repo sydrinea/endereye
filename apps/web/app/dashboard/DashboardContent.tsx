@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/Label'
 import { Pill } from '@/components/ui'
 import { Surface } from '@/components/layout/Surface'
 import { DashboardCard } from './DashboardCard'
+import { OverridesTab } from './OverridesTab'
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
@@ -33,11 +34,12 @@ interface Props {
   initialConfigJson: string
 }
 
-type Tab = 'matches' | 'config'
+type Tab = 'matches' | 'config' | 'overrides'
 
 const TABS = [
   { label: 'Matches', value: 'matches' },
   { label: 'Events Config', value: 'config' },
+  { label: 'Overrides', value: 'overrides' },
 ]
 
 export function DashboardContent({ events, initialConfigJson }: Props) {
@@ -318,6 +320,8 @@ export function DashboardContent({ events, initialConfigJson }: Props) {
             )}
           </div>
         )}
+
+        {tab === 'overrides' && <OverridesTab events={events} />}
       </div>
     </Surface>
   )

@@ -11,7 +11,7 @@ import {
   computeBonusMap,
   enrichEventPlayers,
 } from '@endereye/core'
-import type { EventKind, Match } from '@endereye/core'
+import type { EventKind, Match, EventPlayer, RawOverrides } from '@endereye/core'
 import { getR2Object, putR2Object, deleteR2Object } from '../../lib/r2'
 import { putR2EventsConfig, type R2EventConfig } from '../../lib/events-config'
 
@@ -151,4 +151,46 @@ export async function deleteEventAction(
   await putR2EventsConfig(updated)
   revalidatePath('/')
   return { ok: true, configJson: JSON.stringify(updated, null, 2) }
+}
+
+export interface EventOverrideData {
+  players: Array<{ uuid: string; nickname: string; seedScores: Array<number | null> }>
+  overrides: RawOverrides
+}
+
+export async function getEventDataForOverridesAction(
+  prefix: string,
+): Promise<EventOverrideData | { error: string }> {
+  interface StoredEvent {
+    brackets: Array<{ uuid: string; completions: Array<{ place: number; score: number } | null> }>
+  }
+  const [eventData, playersData, rawOverrides] = await Promise.all([
+    getR2Object<StoredEvent>(`${prefix}.event.json`),
+    getR2Object<EventPlayer[]>(`${prefix}.players.json`),
+    getR2Object<RawOverrides>(`${prefix}.overrides.json`),
+  ])
+  if (!eventData) return { error: 'No event data found' }
+
+  const playerMap = new Map((playersData ?? []).map((p) => [p.uuid, p.nickname]))
+
+  const players = eventData.brackets.map((b) => ({
+    uuid: b.uuid,
+    nickname: playerMap.get(b.uuid) ?? b.uuid,
+    seedScores: b.completions.map((c) => (c ? c.score : null)),
+  }))
+
+  return { players, overrides: rawOverrides ?? {} }
+}
+
+export async function saveOverridesAction(
+  prefix: string,
+  season: number,
+  overrides: RawOverrides,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await putR2Object(`${prefix}.overrides.json`, overrides)
+  revalidatePath('/')
+  revalidatePath('/live')
+  revalidatePath(`/lcq/${season}`)
+  revalidatePath(`/special/2026/worlds`)
+  return { ok: true }
 }

@@ -17,6 +17,17 @@ export const EventPlayerSchema = z.object({
 
 export type EventPlayer = z.infer<typeof EventPlayerSchema>
 
+export interface OverrideInfo {
+  original: number
+  override: number
+}
+
+// uuid → (0-based seed index) → override info
+export type OverrideMap = Record<string, Record<number, OverrideInfo>>
+
+// Raw storage format: uuid → seed index string → replacement score
+export type RawOverrides = Record<string, Record<string, number>>
+
 export interface EventContext {
   readonly kind: EventKind
   readonly season: number
@@ -25,5 +36,6 @@ export interface EventContext {
   readonly matches: number[]
   readonly currentRound: number
   readonly qualifyCount?: number
+  readonly overrides?: OverrideMap
 }
 

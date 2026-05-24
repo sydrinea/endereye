@@ -1,5 +1,5 @@
 import { getR2Object } from './r2'
-import type { EventContext, EventKind, EventPlayer, BracketEntry } from '@endereye/core'
+import type { EventContext, EventKind, EventPlayer, BracketEntry, OverrideMap, RawOverrides } from '@endereye/core'
 
 interface StoredEvent {
   currentRound: number
@@ -9,15 +9,36 @@ interface StoredEvent {
   qualifyCount?: number
 }
 
+function applyRawOverrides(brackets: BracketEntry[], raw: RawOverrides): { brackets: BracketEntry[]; overrides: OverrideMap } {
+  const overrides: OverrideMap = {}
+  const patched = brackets.map((b) => {
+    const playerOverrides = raw[b.uuid]
+    if (!playerOverrides) return b
+    const completions = [...b.completions]
+    for (const [seedIndexStr, overrideScore] of Object.entries(playerOverrides)) {
+      const seedIndex = Number(seedIndexStr)
+      const existing = completions[seedIndex]
+      if (!existing) continue
+      const original = existing.score
+      completions[seedIndex] = { ...existing, score: overrideScore }
+      if (!overrides[b.uuid]) overrides[b.uuid] = {}
+      overrides[b.uuid][seedIndex] = { original, override: overrideScore }
+    }
+    return { ...b, completions }
+  })
+  return { brackets: patched, overrides }
+}
+
 export async function getEventContext(
   kind: EventKind,
   season: number,
   prefix: string,
   qualifyCount?: number,
 ): Promise<EventContext | null> {
-  const [eventData, playersData] = await Promise.all([
+  const [eventData, playersData, rawOverrides] = await Promise.all([
     getR2Object<StoredEvent>(`${prefix}.event.json`),
     getR2Object<EventPlayer[]>(`${prefix}.players.json`),
+    getR2Object<RawOverrides>(`${prefix}.overrides.json`),
   ])
 
   if (!eventData) {
@@ -41,13 +62,18 @@ export async function getEventContext(
     }
   }
 
+  const { brackets, overrides } = rawOverrides
+    ? applyRawOverrides(eventData.brackets, rawOverrides)
+    : { brackets: eventData.brackets, overrides: undefined }
+
   return {
     kind,
     season,
     players: playersData ?? [],
-    brackets: eventData.brackets,
+    brackets,
     matches: eventData.matches,
     currentRound: eventData.currentRound,
     qualifyCount: eventData.qualifyCount ?? qualifyCount,
+    overrides: overrides && Object.keys(overrides).length > 0 ? overrides : undefined,
   }
 }

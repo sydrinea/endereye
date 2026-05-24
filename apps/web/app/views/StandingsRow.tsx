@@ -1,10 +1,17 @@
 'use client'
 
 import { useState } from 'react'
+import { Pencil } from 'lucide-react'
 import { PlayerAvatar, RankDelta, StatusBadge, SurvivalPill, TableCell, TableRow } from '@/components/ui'
 import type { Status } from '@/components/ui'
 
 export type PillData = { type: 'needs'; rank: number } | { type: 'to-cut'; deficit: number }
+
+export interface OverrideEntry {
+  seed: number
+  original: number
+  override: number
+}
 
 export interface StandingsRowData {
   rank: number
@@ -15,6 +22,7 @@ export interface StandingsRowData {
   status: Status
   survivalPct: number
   pill?: PillData
+  overrides?: OverrideEntry[]
 }
 
 const dimmedFg: Record<Status, string> = {
@@ -69,7 +77,23 @@ export function StandingsRow({ row }: { row: StandingsRowData }) {
 
       <TableCell className="hidden lg:block text-right">
         <div className="flex flex-col items-end">
-          <span className="font-display text-xl text-zinc-100 leading-none">{row.pts}</span>
+          <div className="flex items-center gap-1.5">
+            {row.overrides && row.overrides.length > 0 && (
+              <div className="relative group">
+                <Pencil size={11} className="text-zinc-500 cursor-default" />
+                <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:block z-10 pointer-events-none">
+                  <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-2 text-xs text-zinc-300 whitespace-nowrap shadow-lg">
+                    {row.overrides.map((o) => (
+                      <div key={o.seed}>
+                        Seed {o.seed}: {o.original} → {o.override}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            <span className="font-display text-xl text-zinc-100 leading-none">{row.pts}</span>
+          </div>
           {row.bonus > 0 && (
             <span className="text-xs text-zinc-500 mt-0.5">+{row.bonus} bonus</span>
           )}

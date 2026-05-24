@@ -35,10 +35,9 @@ function getCutThreshold(cut: EliminationCut, sorted: SimPlayer[]): number {
   return sorted[Math.min(cut.keepTop - 1, sorted.length - 1)]?.point ?? 0
 }
 
-function deriveStatus(bracket: BracketEntry, isSafe: boolean, isOver: boolean, qualifyCount: number): PlayerStatus {
-  const currentRank = bracket.ranks[bracket.ranks.length - 1] ?? Infinity
-  if (isOver && currentRank <= qualifyCount) return 'qualified'
+function deriveStatus(bracket: BracketEntry, isSafe: boolean, isOver: boolean): PlayerStatus {
   if (bracket.eliminated) return 'eliminated'
+  if (isOver) return 'qualified'
   if (isSafe) return 'safe'
   return 'danger'
 }
@@ -82,7 +81,6 @@ function computeActiveOdds(
 
 function computeFinishedOdds(
   bracket: BracketEntry,
-  qualifyCount: number,
 ): Pick<
   PlayerOdds,
   | 'canStillWin'
@@ -92,7 +90,7 @@ function computeFinishedOdds(
   | 'winProbability'
   | 'survivalProbability'
 > {
-  const qualified = (bracket.ranks[bracket.ranks.length - 1] ?? Infinity) <= qualifyCount
+  const qualified = !bracket.eliminated
   return {
     canStillWin: true,
     isSafeAtNextCut: true,
@@ -140,7 +138,7 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
             survivalProbability: 0,
           }
         : isOver
-          ? computeFinishedOdds(bracket, qualifyCount)
+          ? computeFinishedOdds(bracket)
           : computeActiveOdds(bracket.uuid, alivePlayers, currentRound, mcResults, qualifyCount)
 
       return [
@@ -148,7 +146,7 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
         {
           uuid: bracket.uuid,
           cutDelta: bracket.point - cutThresholdPoint,
-          status: deriveStatus(bracket, computed.isSafeAtNextCut, isOver, qualifyCount),
+          status: deriveStatus(bracket, computed.isSafeAtNextCut, isOver),
           power,
           ...computed,
         },

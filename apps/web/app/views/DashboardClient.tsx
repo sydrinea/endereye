@@ -9,7 +9,7 @@ import { DashboardHeader, CutBanner, Surface } from '@/components/layout'
 import { Table } from '@/components/ui'
 import { StandingsRow } from './StandingsRow'
 import { EliminatedSection } from './EliminatedSection'
-import type { StandingsRowData } from './StandingsRow'
+import type { StandingsRowData, OverrideEntry } from './StandingsRow'
 import type { Status } from '@/components/ui'
 
 const CUT_SEEDS = [3, 5, 7, 8, 9, 10]
@@ -38,12 +38,22 @@ function mapPill(view: PlayerView): StandingsRowData['pill'] {
   return undefined
 }
 
-function toRowData(view: PlayerView): StandingsRowData {
+function toRowData(view: PlayerView, overrideMap?: EventContext['overrides']): StandingsRowData {
   const delta =
     view.prevRank != null && view.prevRank !== view.rank ? view.prevRank - view.rank : null
   const status = mapStatus(view)
   const pct =
     status === 'safe' || status === 'qualified' ? view.winProbability : view.survivalProbability
+
+  const playerOverrides = overrideMap?.[view.uuid]
+  const overrides: OverrideEntry[] | undefined = playerOverrides
+    ? Object.entries(playerOverrides).map(([seedIndex, info]) => ({
+        seed: Number(seedIndex) + 1,
+        original: info.original,
+        override: info.override,
+      }))
+    : undefined
+
   return {
     rank: view.rank,
     delta,
@@ -53,6 +63,7 @@ function toRowData(view: PlayerView): StandingsRowData {
     status,
     survivalPct: Math.round(pct * 100),
     pill: mapPill(view),
+    overrides,
   }
 }
 
@@ -92,8 +103,12 @@ export function DashboardClient({
 
   const views = use(promise)
 
-  const rows = views.filter((v) => v.status !== 'eliminated').map(toRowData)
-  const eliminatedRows = views.filter((v) => v.status === 'eliminated').map(toRowData)
+  const rows = views
+    .filter((v) => v.status !== 'eliminated')
+    .map((v) => toRowData(v, eventData.overrides))
+  const eliminatedRows = views
+    .filter((v) => v.status === 'eliminated')
+    .map((v) => toRowData(v, eventData.overrides))
 
   const nextCut = CUT_SEEDS.find((s) => s > seed)
   const cutKeep =
