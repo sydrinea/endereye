@@ -11,7 +11,19 @@ function getScoreForPlace(place: number, completionCount: number): number {
 export function buildEvent(seedMatches: Match[], bonusMap: Map<string, number>): Event {
   const sorted = [...seedMatches].sort((a, b) => a.id - b.id)
 
-  const field = sorted[0].players.map((p) => p.uuid)
+  // Build field from union of all players across all seeds so late joiners are backfilled with nulls
+  const playerEloMap = new Map<string, number>()
+  const allSeenPlayers: Match['players'][number][] = []
+  for (const match of sorted) {
+    for (const p of match.players) {
+      if (!playerEloMap.has(p.uuid)) {
+        playerEloMap.set(p.uuid, p.eloRate ?? 0)
+        allSeenPlayers.push(p)
+      }
+    }
+  }
+
+  const field = allSeenPlayers.map((p) => p.uuid)
   const points = new Map(field.map((uuid) => [uuid, bonusMap.get(uuid) ?? 0]))
 
   const active = new Set(field)
@@ -21,8 +33,6 @@ export function buildEvent(seedMatches: Match[], bonusMap: Map<string, number>):
     field.map((uuid) => [uuid, []]),
   )
 
-  // Compute initial (pre-event) ranks from bonus desc, eloRate desc as tiebreaker
-  const playerEloMap = new Map(sorted[0].players.map((p) => [p.uuid, p.eloRate ?? 0]))
   const initialSorted = [...field].sort((a, b) => {
     const ba = bonusMap.get(a) ?? 0
     const bb = bonusMap.get(b) ?? 0
@@ -118,7 +128,7 @@ export function buildEvent(seedMatches: Match[], bonusMap: Map<string, number>):
     currentRound: sorted.length + 1,
     matches: sorted.map((m) => m.id),
     brackets,
-    players: sorted[0].players,
+    players: allSeenPlayers,
   }
 }
 
