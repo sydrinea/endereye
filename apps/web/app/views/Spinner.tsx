@@ -6,10 +6,11 @@ const COLORS = {
 interface SpinnerProps {
   className?: string
   color?: keyof typeof COLORS
+  colorValue?: string
   size?: number
 }
 
-export function Spinner({ className, color = 'accent', size = 48 }: SpinnerProps) {
+export function Spinner({ className, color = 'accent', colorValue, size = 48 }: SpinnerProps) {
   return (
     <svg
       className={`animate-spin ${className ?? ''}`}
@@ -23,7 +24,7 @@ export function Spinner({ className, color = 'accent', size = 48 }: SpinnerProps
         cx="24"
         cy="24"
         r="20"
-        stroke={COLORS[color]}
+        stroke={colorValue ?? COLORS[color]}
         strokeWidth="3"
         strokeLinecap="round"
         strokeDasharray="94"

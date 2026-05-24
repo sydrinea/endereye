@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil } from 'lucide-react'
+import { Pencil, GitBranch } from 'lucide-react'
 import { PlayerAvatar, RankDelta, StatusBadge, SurvivalPill, TableCell, TableRow } from '@/components/ui'
 import type { Status } from '@/components/ui'
+import { Spinner } from './Spinner'
 
 export type PillData = { type: 'needs'; rank: number } | { type: 'to-cut'; deficit: number }
 
@@ -55,7 +56,44 @@ const statusDotColor: Record<Status, string> = {
   out: 'bg-zinc-600',
 }
 
-export function StandingsRow({ row }: { row: StandingsRowData }) {
+function SurvivalPathsButton({ onClick, status }: { onClick: () => Promise<void>; status: Status }) {
+  const [pending, setPending] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const accent = statusAccent[status]
+
+  async function handle(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (pending) return
+    setPending(true)
+    await onClick()
+    setPending(false)
+  }
+
+  return (
+    <button
+      onClick={handle}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium transition-colors cursor-pointer shrink-0"
+      style={{
+        color: accent,
+        background: `color-mix(in srgb, ${accent} ${hovered ? '20%' : '12%'}, transparent)`,
+        border: `1px solid color-mix(in srgb, ${accent} ${hovered ? '45%' : '28%'}, transparent)`,
+      }}
+    >
+      {pending ? <Spinner size={11} colorValue={accent ?? undefined} /> : <GitBranch size={11} />}
+      Survival Paths
+    </button>
+  )
+}
+
+export function StandingsRow({
+  row,
+  onSelectScenarios,
+}: {
+  row: StandingsRowData
+  onSelectScenarios?: () => Promise<void>
+}) {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -110,8 +148,9 @@ export function StandingsRow({ row }: { row: StandingsRowData }) {
         </div>
       </TableCell>
 
-      <TableCell className="hidden lg:flex justify-end">
-        {row.pill && <SurvivalPill {...row.pill} />}
+      <TableCell className="hidden lg:flex justify-end items-center gap-2">
+        {row.pill && <span className="inline-flex shrink-0"><SurvivalPill {...row.pill} /></span>}
+        {onSelectScenarios && <SurvivalPathsButton onClick={onSelectScenarios} status={row.status} />}
       </TableCell>
 
       {/* Mobile layout — spans all columns */}
@@ -140,6 +179,7 @@ export function StandingsRow({ row }: { row: StandingsRowData }) {
               </span>
               {row.bonus > 0 && <span className="text-xs text-zinc-500">+{row.bonus} bonus</span>}
               {row.pill && <SurvivalPill {...row.pill} />}
+              {onSelectScenarios && <SurvivalPathsButton onClick={onSelectScenarios} status={row.status} />}
             </div>
           </div>
         </div>

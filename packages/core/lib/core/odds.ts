@@ -9,8 +9,10 @@ import {
   getPlayerPower,
   isSafeAtNextCutDeterministic,
   runMonteCarlo,
+  runScenarioAnalysis,
   toSimPlayer,
 } from './simulation'
+export type { PlacementConstraint, SurvivalScenario } from './simulation'
 
 export type PlayerStatus = 'qualified' | 'safe' | 'danger' | 'eliminated'
 
@@ -165,4 +167,54 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
       ]
     }),
   )
+}
+
+export function computeSurvivalScenarios(
+  ctx: EventContext,
+  targetUuid: string,
+): import('./simulation').SurvivalScenario[] {
+  const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
+  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
+  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
+    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
+  )
+
+  const { currentRound, brackets, players } = ctx
+  const lastSeed = Math.max(...effectiveSchedule.map((c) => c.afterSeed))
+  if (currentRound > lastSeed) return []
+
+  const playerLookup = new Map(players.map((p) => [p.uuid, p]))
+  const alivePlayers = brackets
+    .filter((b) => !b.eliminated)
+    .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
+
+  const target = alivePlayers.find((p) => p.uuid === targetUuid)
+  if (!target) return []
+
+  return runScenarioAnalysis(targetUuid, alivePlayers, currentRound, effectiveSchedule, qualifyCount)
+}
+
+export function computeFailureScenarios(
+  ctx: EventContext,
+  targetUuid: string,
+): import('./simulation').SurvivalScenario[] {
+  const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
+  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
+  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
+    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
+  )
+
+  const { currentRound, brackets, players } = ctx
+  const lastSeed = Math.max(...effectiveSchedule.map((c) => c.afterSeed))
+  if (currentRound > lastSeed) return []
+
+  const playerLookup = new Map(players.map((p) => [p.uuid, p]))
+  const alivePlayers = brackets
+    .filter((b) => !b.eliminated)
+    .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
+
+  const target = alivePlayers.find((p) => p.uuid === targetUuid)
+  if (!target) return []
+
+  return runScenarioAnalysis(targetUuid, alivePlayers, currentRound, effectiveSchedule, qualifyCount, 20000, true)
 }

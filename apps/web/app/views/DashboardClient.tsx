@@ -3,12 +3,13 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { use, useState } from 'react'
-import { buildPlayerViews, computeHistoricalData, computePlayerOdds } from '@endereye/core'
-import type { PlayerView, EventContext } from '@endereye/core'
+import { buildPlayerViews, computeHistoricalData, computePlayerOdds, computeSurvivalScenarios, computeFailureScenarios } from '@endereye/core'
+import type { PlayerView, EventContext, SurvivalScenario } from '@endereye/core'
 import { DashboardHeader, CutBanner, Surface } from '@/components/layout'
 import { Table, PlayerFilter } from '@/components/ui'
 import { StandingsRow } from './StandingsRow'
 import { EliminatedSection } from './EliminatedSection'
+import { SurvivalScenariosModal } from './SurvivalScenariosModal'
 import type { StandingsRowData, OverrideEntry } from './StandingsRow'
 import type { Status } from '@/components/ui'
 
@@ -87,6 +88,7 @@ export function DashboardClient({
   backHref?: string
 }) {
   const [filteredNicknames, setFilteredNicknames] = useState<string[]>([])
+  const [scenarioTarget, setScenarioTarget] = useState<{ view: PlayerView; scenarios: SurvivalScenario[]; failureScenarios: SurvivalScenario[] } | null>(null)
   const [state, setState] = useState(() => ({
     seed,
     promise: new Promise<PlayerView[]>((resolve) =>
@@ -106,12 +108,28 @@ export function DashboardClient({
 
   const allNicknames = views.map((v) => v.nickname)
 
-  const rows = views
-    .filter((v) => v.status !== 'eliminated')
-    .map((v) => toRowData(v, eventData.overrides))
+  const activeViews = views.filter((v) => v.status !== 'eliminated')
+  const rows = activeViews.map((v) => toRowData(v, eventData.overrides))
   const eliminatedRows = views
     .filter((v) => v.status === 'eliminated')
     .map((v) => toRowData(v, eventData.overrides))
+  const viewByNickname = new Map(activeViews.map((v) => [v.nickname, v]))
+
+  function scenarioCallback(nickname: string) {
+    const view = viewByNickname.get(nickname)
+    if (!view) return undefined
+    const eligible = view.status === 'danger' || (view.status === 'safe' && typeof view.clinchPlace === 'number')
+    if (!eligible) return undefined
+    return async () => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      const ctx = computeHistoricalData(eventData, seed)
+      const scenarios = computeSurvivalScenarios(ctx, view.uuid)
+      const failureScenarios = typeof view.clinchPlace === 'number'
+        ? computeFailureScenarios(ctx, view.uuid)
+        : []
+      setScenarioTarget({ view, scenarios, failureScenarios })
+    }
+  }
 
   function addFilter(nick: string) {
     setFilteredNicknames((prev) => (prev.includes(nick) ? prev : [...prev, nick]))
@@ -199,7 +217,7 @@ export function DashboardClient({
           <div className="border-b border-zinc-800" />
           <Table cols={COLS}>
             {aboveCut.map((row) => (
-              <StandingsRow key={row.nickname} row={row} />
+              <StandingsRow key={row.nickname} row={row} onSelectScenarios={scenarioCallback(row.nickname)} />
             ))}
           </Table>
 
@@ -208,7 +226,7 @@ export function DashboardClient({
               <CutBanner label="Next Elimination" detail={cutLabel} />
               <Table cols={COLS}>
                 {belowCut.map((row) => (
-                  <StandingsRow key={row.nickname} row={row} />
+                  <StandingsRow key={row.nickname} row={row} onSelectScenarios={scenarioCallback(row.nickname)} />
                 ))}
               </Table>
             </>
@@ -217,6 +235,14 @@ export function DashboardClient({
           {visibleEliminated.length > 0 && <EliminatedSection rows={visibleEliminated} />}
         </div>
       </Surface>
+
+      <SurvivalScenariosModal
+        targetView={scenarioTarget?.view ?? null}
+        scenarios={scenarioTarget?.scenarios ?? null}
+        failureScenarios={scenarioTarget?.failureScenarios ?? null}
+        nicknameOf={(uuid) => eventData.players.find((p) => p.uuid === uuid)?.nickname ?? uuid}
+        onClose={() => setScenarioTarget(null)}
+      />
     </>
   )
 }

@@ -268,9 +268,8 @@ function randomGaussian(): number {
   return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v)
 }
 
-function simulateRound(alive: SimPlayer[], round: number, stats: LobbyStats): SimPlayer[] {
-  const scores = getAvailableScores(alive.length)
-  const ranked = alive
+function rankPlayers(alive: SimPlayer[], round: number, stats: LobbyStats) {
+  return alive
     .map((p, idx) => ({
       idx,
       val:
@@ -279,6 +278,11 @@ function simulateRound(alive: SimPlayer[], round: number, stats: LobbyStats): Si
           : getPlayerPower(p, round, stats) + (randomGaussian() * getPlayerVariance(p, stats)) / 3,
     }))
     .sort((a, b) => b.val - a.val)
+}
+
+function simulateRound(alive: SimPlayer[], round: number, stats: LobbyStats): SimPlayer[] {
+  const scores = getAvailableScores(alive.length)
+  const ranked = rankPlayers(alive, round, stats)
   return alive.map((p, i) => ({
     ...p,
     point: p.point + scores[ranked.findIndex((r) => r.idx === i)],
@@ -402,4 +406,158 @@ export function runFullHeatmapSimulation(
       ),
     ]),
   )
+}
+
+export interface PlacementConstraint {
+  uuid: string
+  minPlace: number
+}
+
+export interface SurvivalScenario {
+  constraints: PlacementConstraint[]
+  survivalProbability: number
+  frequency: number
+}
+
+export function runScenarioAnalysis(
+  targetUuid: string,
+  players: SimPlayer[],
+  currentRound: number,
+  cuts: EliminationCut[],
+  qualifyCount: number,
+  iterations = 20000,
+  fixedTargetLast = false,
+): SurvivalScenario[] {
+  const nextCutEntry = cuts.find((c) => c.afterSeed >= currentRound)
+  if (!nextCutEntry) return []
+
+  const stats = calculateLobbyStats(players)
+  const scores = getAvailableScores(players.length)
+  const n = players.length
+
+  type SimRecord = { placements: Record<string, number>; survived: boolean }
+  const records: SimRecord[] = []
+
+  for (let i = 0; i < iterations; i++) {
+    let alive = players.map((p) => ({ ...p }))
+    let placements: Record<string, number> = {}
+
+    for (let r = currentRound; r <= nextCutEntry.afterSeed; r++) {
+      if (alive.length === 0) break
+      if (r === currentRound) {
+        if (fixedTargetLast) {
+          // Pin target to last place; randomly rank everyone else for the remaining slots
+          const tIdx = alive.findIndex((p) => p.uuid === targetUuid)
+          const others = alive.filter((_, i) => i !== tIdx)
+          const otherRanked = rankPlayers(others, r, stats)
+          const otherScores = scores.slice(0, n - 1)
+          placements[targetUuid] = n
+          otherRanked.forEach((entry, place) => {
+            placements[others[entry.idx].uuid] = place + 1
+          })
+          alive = alive.map((p) => {
+            if (p.uuid === targetUuid) return { ...p, point: p.point + (scores[n - 1] ?? 0) }
+            const oIdx = others.findIndex((o) => o.uuid === p.uuid)
+            const rank = otherRanked.findIndex((e) => e.idx === oIdx)
+            return { ...p, point: p.point + (otherScores[rank] ?? 0) }
+          })
+        } else {
+          const ranked = rankPlayers(alive, r, stats)
+          ranked.forEach((entry, place) => {
+            placements[alive[entry.idx].uuid] = place + 1
+          })
+          alive = alive.map((p, i) => ({
+            ...p,
+            point: p.point + scores[ranked.findIndex((entry) => entry.idx === i)],
+          }))
+        }
+      } else {
+        alive = simulateRound(alive, r, stats)
+      }
+      const cut = cuts.find((c) => c.afterSeed === r)
+      if (cut) alive = applyElimination(alive, cut)
+    }
+
+    records.push({ placements, survived: alive.some((p) => p.uuid === targetUuid) })
+  }
+
+  const naturalSurvived = records.filter((r) => r.survived).length
+  if (naturalSurvived === 0) return []
+
+  const baseP = naturalSurvived / iterations
+  const thresholds = [...new Set([3, 5, 7, n].filter((t) => t <= n && t > 1))]
+  const MIN_FREQ = 0.05
+
+  const opponents = players.filter((p) => p.uuid !== targetUuid)
+
+  // Score each opponent by how much their placement correlates with target survival
+  const dangerScores = opponents.map((opp) => {
+    let score = 0
+    for (const t of thresholds) {
+      const matching = records.filter((rec) => rec.placements[opp.uuid] >= t)
+      if (matching.length < iterations * MIN_FREQ) continue
+      const condP = matching.filter((rec) => rec.survived).length / matching.length
+      score += Math.abs(condP - baseP)
+    }
+    return { uuid: opp.uuid, score }
+  })
+  dangerScores.sort((a, b) => b.score - a.score)
+  const dangerous = dangerScores.slice(0, 3).map((d) => d.uuid)
+
+  const candidates: SurvivalScenario[] = []
+
+  // Single-opponent scenarios
+  for (const uuid of dangerous) {
+    for (const t of thresholds) {
+      const matching = records.filter((rec) => rec.placements[uuid] >= t)
+      const frequency = matching.length / iterations
+      if (frequency < MIN_FREQ) continue
+      candidates.push({
+        constraints: [{ uuid, minPlace: t }],
+        survivalProbability: matching.filter((rec) => rec.survived).length / matching.length,
+        frequency,
+      })
+    }
+  }
+
+  // Two-opponent scenarios
+  for (let a = 0; a < dangerous.length; a++) {
+    for (let b = a + 1; b < dangerous.length; b++) {
+      for (const tA of thresholds) {
+        for (const tB of thresholds) {
+          const matching = records.filter(
+            (rec) => rec.placements[dangerous[a]] >= tA && rec.placements[dangerous[b]] >= tB,
+          )
+          const frequency = matching.length / iterations
+          if (frequency < MIN_FREQ) continue
+          candidates.push({
+            constraints: [
+              { uuid: dangerous[a], minPlace: tA },
+              { uuid: dangerous[b], minPlace: tB },
+            ],
+            survivalProbability: matching.filter((rec) => rec.survived).length / matching.length,
+            frequency,
+          })
+        }
+      }
+    }
+  }
+
+  candidates.sort((a, b) => b.survivalProbability - a.survivalProbability)
+
+  // Prune: remove scenarios dominated by a scenario with looser constraints + equal/better survival
+  const pruned: SurvivalScenario[] = []
+  for (const s of candidates) {
+    const dominated = pruned.some(
+      (existing) =>
+        existing.survivalProbability >= s.survivalProbability &&
+        existing.constraints.every((ec) => {
+          const sc = s.constraints.find((c) => c.uuid === ec.uuid)
+          return !sc || ec.minPlace <= sc.minPlace
+        }),
+    )
+    if (!dominated) pruned.push(s)
+  }
+
+  return pruned.slice(0, 8)
 }
