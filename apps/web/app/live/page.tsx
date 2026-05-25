@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getActiveEvent } from '../../lib/events-config'
 
-export const revalidate = false
+export const dynamic = 'force-dynamic'
 
 export default async function Page() {
   const activeEvent = await getActiveEvent()
