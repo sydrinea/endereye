@@ -47,6 +47,7 @@ function mapPill(view: PlayerView): StandingsRowData['pill'] {
 }
 
 function mssPhasePoints(rank: number): number {
+  if (rank <= 4) return 25
   if (rank <= 6) return 20
   if (rank <= 8) return 15
   if (rank <= 10) return 10
@@ -169,14 +170,16 @@ export function DashboardClient({
   const allNicknames = views.map((v) => v.nickname)
 
   const isMss = eventData.kind === 'mss'
-  const qualifiedLabel = isMss ? 'Earns Pts' : undefined
+  const qualifiedLabel = (pts: number) => (isMss ? `${pts} Phase Points` : undefined)
 
   const activeViews = views.filter((v) => v.status !== 'eliminated')
-  const rows = activeViews.map((v) => toRowData(v, eventData.overrides, qualifiedLabel))
+  const rows = activeViews.map((v) =>
+    toRowData(v, eventData.overrides, qualifiedLabel(mssPhasePoints(v.rank))),
+  )
   const eliminatedRows = views
     .filter((v) => v.status === 'eliminated')
     .map((v) => {
-      const row = toRowData(v, eventData.overrides, qualifiedLabel)
+      const row = toRowData(v, eventData.overrides, qualifiedLabel(mssPhasePoints(v.rank)))
       if (isMss) {
         const pts = mssPhasePoints(v.rank)
         return pts > 0 ? { ...row, phasePoints: pts } : row
