@@ -12,7 +12,12 @@ interface Props {
   isOver?: boolean
 }
 
-export function HeroSection({ event, upcomingEvents, hasPastEvents = false, isOver = false }: Props) {
+export function HeroSection({
+  event,
+  upcomingEvents,
+  hasPastEvents = false,
+  isOver = false,
+}: Props) {
   const dateLabel = event?.startDate.toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
@@ -41,10 +46,13 @@ export function HeroSection({ event, upcomingEvents, hasPastEvents = false, isOv
         <section className="flex flex-col items-center gap-3 pt-12 pb-16 px-6">
           {upcomingEvents.length > 0 && (
             <>
-              <p className="text-xs text-zinc-600 uppercase tracking-widest mb-1">Other Events</p>
-              {upcomingEvents.map((e) => (
-                <EventCard key={e.slug} event={e} upcoming />
-              ))}
+              <p className="text-xs text-zinc-600 uppercase tracking-widest mb-1">Next Event</p>
+              {upcomingEvents
+                .sort((a, b) => (new Date(a.startDate) > new Date(b.startDate) ? 1 : -1))
+                .slice(0, 1)
+                .map((e) => (
+                  <EventCard key={e.slug} event={e} upcoming />
+                ))}
             </>
           )}
           {hasPastEvents && (

@@ -167,11 +167,13 @@ export function DashboardContent({ events, initialConfigJson }: Props) {
                   onChange={(e) => setSelectedSlug(e.target.value)}
                   className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-zinc-600"
                 >
-                  {events.map((ev) => (
-                    <option key={ev.slug} value={ev.slug}>
-                      {ev.label} (season {ev.season})
-                    </option>
-                  ))}
+                  {events
+                    .sort((a, b) => (new Date(a.startDate) > new Date(b.startDate) ? 1 : -1))
+                    .map((ev) => (
+                      <option key={ev.slug} value={ev.slug}>
+                        {ev.label} (season {ev.season})
+                      </option>
+                    ))}
                 </select>
               </div>
 
