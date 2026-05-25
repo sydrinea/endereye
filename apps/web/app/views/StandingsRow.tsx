@@ -31,6 +31,8 @@ export interface StandingsRowData {
   survivalPct: number
   pill?: PillData
   overrides?: OverrideEntry[]
+  qualifiedLabel?: string
+  phasePoints?: number
 }
 
 const dimmedFg: Record<Status, string> = {
@@ -160,7 +162,10 @@ export function StandingsRow({
 
       <TableCell className="hidden lg:block">
         <div className="flex flex-col">
-          <StatusBadge status={row.status} />
+          <StatusBadge
+            status={row.status}
+            label={row.status === 'qualified' ? row.qualifiedLabel : undefined}
+          />
           <span className={`text-xs mt-0.5 ${dimmedFg[row.status]}`}>
             {row.survivalPct}% Survive
           </span>
@@ -197,7 +202,10 @@ export function StandingsRow({
         >
           <div className="overflow-hidden">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-0.5 pl-8">
-              <StatusBadge status={row.status} />
+              <StatusBadge
+                status={row.status}
+                label={row.status === 'qualified' ? row.qualifiedLabel : undefined}
+              />
               <span className={`text-xs ${dimmedFg[row.status]}`}>{row.survivalPct}% Survive</span>
               {row.bonus > 0 && <span className="text-xs text-zinc-500">+{row.bonus} bonus</span>}
               {row.pill && <SurvivalPill {...row.pill} />}

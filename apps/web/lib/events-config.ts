@@ -10,6 +10,7 @@ export interface R2EventConfig {
   path: string
   qualifyCount?: number
   noBonus?: boolean
+  published?: boolean // absent treated as true; set false to hide in production
 }
 
 export interface EventConfig {
@@ -22,6 +23,7 @@ export interface EventConfig {
   path: string
   qualifyCount?: number
   noBonus?: boolean
+  published?: boolean
 }
 
 function toEventConfig(r2: R2EventConfig): EventConfig {
@@ -38,9 +40,16 @@ export async function putR2EventsConfig(configs: R2EventConfig[]): Promise<void>
   await putR2Object(CONFIG_KEY, configs)
 }
 
+const isProd = process.env.NODE_ENV === 'production'
+
+function isVisible(e: R2EventConfig): boolean {
+  // absent published field is treated as published; only explicit false hides in prod
+  return !isProd || e.published !== false
+}
+
 export async function getAllEvents(): Promise<EventConfig[]> {
   const r2 = await getR2EventsConfig()
-  return (r2 ?? []).map(toEventConfig)
+  return (r2 ?? []).filter(isVisible).map(toEventConfig)
 }
 
 export async function getActiveEvent(): Promise<EventConfig | null> {
@@ -53,6 +62,7 @@ export async function getActiveEvent(): Promise<EventConfig | null> {
   cutoff.setDate(cutoff.getDate() - 3)
 
   const activeOrFuture = r2
+    .filter(isVisible)
     .map(toEventConfig)
     .filter((e) => e.startDate >= cutoff)
     .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())

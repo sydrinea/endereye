@@ -29,8 +29,9 @@ const labels: Record<Status, string> = {
 
 interface Props {
   status: Status
+  label?: string
 }
 
-export function StatusBadge({ status }: Props) {
-  return <span className={`font-display text-base ${fg[status]}`}>{labels[status]}</span>
+export function StatusBadge({ status, label }: Props) {
+  return <span className={`font-display text-base ${fg[status]}`}>{label ?? labels[status]}</span>
 }

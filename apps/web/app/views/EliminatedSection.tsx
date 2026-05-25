@@ -40,7 +40,12 @@ export function EliminatedSection({ rows }: { rows: StandingsRowData[] }) {
                   </div>
                 </TableCell>
                 <TableCell className="hidden lg:block text-right">
-                  <span className="font-display text-zinc-600">{row.pts}</span>
+                  <div className="flex flex-col items-end">
+                    <span className="font-display text-zinc-600">{row.pts}</span>
+                    {row.phasePoints != null && (
+                      <span className="text-xs text-zinc-500 mt-0.5">+{row.phasePoints} phase pts</span>
+                    )}
+                  </div>
                 </TableCell>
 
                 {/* Mobile */}
@@ -49,7 +54,12 @@ export function EliminatedSection({ rows }: { rows: StandingsRowData[] }) {
                     <span className="font-display text-zinc-600 w-5 shrink-0">{row.rank}</span>
                     <PlayerAvatar nickname={row.nickname} size="sm" />
                     <span className="font-display text-zinc-400 flex-1 truncate">{row.nickname}</span>
-                    <span className="font-display text-zinc-600 shrink-0">{row.pts}</span>
+                    <div className="flex flex-col items-end shrink-0">
+                      <span className="font-display text-zinc-600">{row.pts}</span>
+                      {row.phasePoints != null && (
+                        <span className="text-xs text-zinc-500">+{row.phasePoints} phase pts</span>
+                      )}
+                    </div>
                   </div>
                 </TableCell>
               </TableRow>

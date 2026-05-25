@@ -46,7 +46,18 @@ function mapPill(view: PlayerView): StandingsRowData['pill'] {
   return undefined
 }
 
-function toRowData(view: PlayerView, overrideMap?: EventContext['overrides']): StandingsRowData {
+function mssPhasePoints(rank: number): number {
+  if (rank <= 6) return 20
+  if (rank <= 8) return 15
+  if (rank <= 10) return 10
+  return 0
+}
+
+function toRowData(
+  view: PlayerView,
+  overrideMap?: EventContext['overrides'],
+  qualifiedLabel?: string,
+): StandingsRowData {
   const delta =
     view.prevRank != null && view.prevRank !== view.rank ? view.prevRank - view.rank : null
   const status = mapStatus(view)
@@ -71,6 +82,7 @@ function toRowData(view: PlayerView, overrideMap?: EventContext['overrides']): S
     survivalPct: Math.round(pct * 100),
     pill: mapPill(view),
     overrides,
+    qualifiedLabel,
   }
 }
 
@@ -156,11 +168,21 @@ export function DashboardClient({
 
   const allNicknames = views.map((v) => v.nickname)
 
+  const isMss = eventData.kind === 'mss'
+  const qualifiedLabel = isMss ? 'Earns Pts' : undefined
+
   const activeViews = views.filter((v) => v.status !== 'eliminated')
-  const rows = activeViews.map((v) => toRowData(v, eventData.overrides))
+  const rows = activeViews.map((v) => toRowData(v, eventData.overrides, qualifiedLabel))
   const eliminatedRows = views
     .filter((v) => v.status === 'eliminated')
-    .map((v) => toRowData(v, eventData.overrides))
+    .map((v) => {
+      const row = toRowData(v, eventData.overrides, qualifiedLabel)
+      if (isMss) {
+        const pts = mssPhasePoints(v.rank)
+        return pts > 0 ? { ...row, phasePoints: pts } : row
+      }
+      return row
+    })
   const viewByNickname = new Map(activeViews.map((v) => [v.nickname, v]))
 
   function scenarioCallback(nickname: string) {

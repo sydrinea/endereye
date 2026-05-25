@@ -17,13 +17,13 @@ export default async function Page({
   const season = Number(seasonParam)
 
   const [allEvents, activeEvent] = await Promise.all([getAllEvents(), getActiveEvent()])
-  const event = allEvents.find((e) => e.kind === 'lcq' && e.season === season)
+  const event = allEvents.find((e) => e.kind === 'mss' && e.season === season)
   if (!event) return notFound()
   const eventLabel = event.label
-  const isActive = event?.slug === activeEvent?.slug
+  const isActive = event.slug === activeEvent?.slug
 
   const eventData = await getEventContext(
-    'lcq',
+    'mss',
     season,
     event.prefix,
     event.qualifyCount,
