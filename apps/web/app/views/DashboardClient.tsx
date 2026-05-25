@@ -274,7 +274,11 @@ export function DashboardClient({
         <div className="flex flex-col gap-2">
           <Banner
             label="Disclaimer"
-            detail="Survival odds only simulate the next elimination round. A 'Safe' status right now does not guarantee safety for the entire event"
+            detail="Survival odds only reflect the next elimination round. A 'Safe' status right now does not guarantee safety for the entire event"
+          />
+          <Banner
+            label="Shifting %'s"
+            detail="Percentages may fluctuate slightly on refresh. The site runs thousands of simulations to assign odds, so slight variations are completely normal."
           />
           <PlayerFilter
             players={allNicknames}
