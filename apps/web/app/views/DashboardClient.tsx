@@ -2,16 +2,17 @@
 
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { use, useState } from 'react'
+import { use, useEffect, useState } from 'react'
 import {
   buildPlayerViews,
+  buildScenarioRecords,
   computeHistoricalData,
   computePlayerOdds,
-  computeSurvivalScenarios,
+  deriveScenariosFromRecords,
   computeFailureScenarios,
 } from '@endereye/core'
-import type { PlayerView, EventContext, SurvivalScenario } from '@endereye/core'
-import { DashboardHeader, CutBanner, Surface } from '@/components/layout'
+import type { PlayerView, EventContext, SurvivalScenario, ScenarioRecords } from '@endereye/core'
+import { DashboardHeader, Banner, Surface } from '@/components/layout'
 import { Table, PlayerFilter } from '@/components/ui'
 import { StandingsRow } from './StandingsRow'
 import { EliminatedSection } from './EliminatedSection'
@@ -49,8 +50,7 @@ function toRowData(view: PlayerView, overrideMap?: EventContext['overrides']): S
   const delta =
     view.prevRank != null && view.prevRank !== view.rank ? view.prevRank - view.rank : null
   const status = mapStatus(view)
-  const pct =
-    status === 'safe' || status === 'qualified' ? view.winProbability : view.survivalProbability
+  const pct = view.survivalProbability
 
   const playerOverrides = overrideMap?.[view.uuid]
   const overrides: OverrideEntry[] | undefined = playerOverrides
@@ -93,11 +93,27 @@ export function DashboardClient({
   live?: boolean
   backHref?: string
 }) {
-  const [filteredNicknames, setFilteredNicknames] = useState<string[]>([])
+  const filterKey = `endereye:filter:${eventLabel}`
+  const [filteredNicknames, setFilteredNicknames] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const stored = localStorage.getItem(filterKey)
+      return stored ? (JSON.parse(stored) as string[]) : []
+    } catch {
+      return []
+    }
+  })
+  useEffect(() => {
+    try {
+      if (filteredNicknames.length === 0) localStorage.removeItem(filterKey)
+      else localStorage.setItem(filterKey, JSON.stringify(filteredNicknames))
+    } catch {}
+  }, [filteredNicknames, filterKey])
   const [scenarioTarget, setScenarioTarget] = useState<{
     view: PlayerView
     scenarios: SurvivalScenario[]
     failureScenarios: SurvivalScenario[]
+    dnfSurvivalProbability: number
   } | null>(null)
   const [state, setState] = useState(() => ({
     seed,
@@ -114,7 +130,29 @@ export function DashboardClient({
     setState({ seed, promise })
   }
 
+  const [recordsState, setRecordsState] = useState(() => ({
+    seed,
+    promise: new Promise<ScenarioRecords | null>((resolve) =>
+      setTimeout(() => {
+        const ctx = computeHistoricalData(eventData, seed)
+        resolve(buildScenarioRecords(ctx))
+      }, 0),
+    ),
+  }))
+
+  let recordsPromise = recordsState.promise
+  if (recordsState.seed !== seed) {
+    recordsPromise = new Promise<ScenarioRecords | null>((resolve) =>
+      setTimeout(() => {
+        const ctx = computeHistoricalData(eventData, seed)
+        resolve(buildScenarioRecords(ctx))
+      }, 0),
+    )
+    setRecordsState({ seed, promise: recordsPromise })
+  }
+
   const views = use(promise)
+  const scenarioRecords = use(recordsPromise)
 
   const allNicknames = views.map((v) => v.nickname)
 
@@ -131,14 +169,30 @@ export function DashboardClient({
     const eligible =
       view.status === 'danger' || (view.status === 'safe' && typeof view.clinchPlace === 'number')
     if (!eligible) return undefined
-    return async () => {
-      await new Promise<void>((resolve) => setTimeout(resolve, 0))
-      const ctx = computeHistoricalData(eventData, seed)
-      const scenarios = computeSurvivalScenarios(ctx, view.uuid)
-      const failureScenarios =
-        typeof view.clinchPlace === 'number' ? computeFailureScenarios(ctx, view.uuid) : []
-      setScenarioTarget({ view, scenarios, failureScenarios })
-    }
+    return () =>
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          const threatMode =
+            view.status === 'safe' ||
+            view.status === 'qualified' ||
+            view.survivalProbability >= 0.75
+          const scenarios = scenarioRecords
+            ? deriveScenariosFromRecords(view.uuid, scenarioRecords, { threatMode }).scenarios
+            : []
+          if (typeof view.clinchPlace === 'number') {
+            const ctx = computeHistoricalData(eventData, seed)
+            const { scenarios: failureScenarios, dnfSurvivalProbability } = computeFailureScenarios(
+              ctx,
+              view.uuid,
+              threatMode,
+            )
+            setScenarioTarget({ view, scenarios, failureScenarios, dnfSurvivalProbability })
+          } else {
+            setScenarioTarget({ view, scenarios, failureScenarios: [], dnfSurvivalProbability: 0 })
+          }
+          resolve()
+        }, 0),
+      )
   }
 
   function addFilter(nick: string) {
@@ -218,6 +272,10 @@ export function DashboardClient({
       />
       <Surface width="xl">
         <div className="flex flex-col gap-2">
+          <Banner
+            label="Disclaimer"
+            detail="Survival odds only simulate the next elimination round. A 'Safe' status right now does not guarantee safety for the entire event"
+          />
           <PlayerFilter
             players={allNicknames}
             selected={filteredNicknames}
@@ -237,7 +295,7 @@ export function DashboardClient({
 
           {belowCut.length > 0 && (
             <>
-              <CutBanner label="Next Elimination" detail={cutLabel} />
+              <Banner label="Next Elimination" detail={cutLabel} variant="danger" />
               <Table cols={COLS}>
                 {belowCut.map((row) => (
                   <StandingsRow
@@ -258,6 +316,7 @@ export function DashboardClient({
         targetView={scenarioTarget?.view ?? null}
         scenarios={scenarioTarget?.scenarios ?? null}
         failureScenarios={scenarioTarget?.failureScenarios ?? null}
+        dnfSurvivalProbability={scenarioTarget?.dnfSurvivalProbability ?? 0}
         nicknameOf={(uuid) => eventData.players.find((p) => p.uuid === uuid)?.nickname ?? uuid}
         onClose={() => setScenarioTarget(null)}
       />

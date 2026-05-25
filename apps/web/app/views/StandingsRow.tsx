@@ -1,8 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, GitBranch } from 'lucide-react'
-import { PlayerAvatar, RankDelta, StatusBadge, SurvivalPill, TableCell, TableRow } from '@/components/ui'
+import { Pencil, GitBranch, ShieldAlert } from 'lucide-react'
+import {
+  PlayerAvatar,
+  RankDelta,
+  StatusBadge,
+  SurvivalPill,
+  TableCell,
+  TableRow,
+} from '@/components/ui'
 import type { Status } from '@/components/ui'
 import { Spinner } from './Spinner'
 
@@ -56,10 +63,17 @@ const statusDotColor: Record<Status, string> = {
   out: 'bg-zinc-600',
 }
 
-function SurvivalPathsButton({ onClick, status }: { onClick: () => Promise<void>; status: Status }) {
+function SurvivalPathsButton({
+  onClick,
+  status,
+}: {
+  onClick: () => Promise<void>
+  status: Status
+}) {
   const [pending, setPending] = useState(false)
   const [hovered, setHovered] = useState(false)
   const accent = statusAccent[status]
+  const threatMode = status === 'safe' || status === 'qualified' || status === 'near-safe'
 
   async function handle(e: React.MouseEvent) {
     e.stopPropagation()
@@ -81,8 +95,14 @@ function SurvivalPathsButton({ onClick, status }: { onClick: () => Promise<void>
         border: `1px solid color-mix(in srgb, ${accent} ${hovered ? '45%' : '28%'}, transparent)`,
       }}
     >
-      {pending ? <Spinner size={11} colorValue={accent ?? undefined} /> : <GitBranch size={11} />}
-      Survival Paths
+      {pending ? (
+        <Spinner size={11} colorValue={accent ?? undefined} />
+      ) : threatMode ? (
+        <ShieldAlert size={11} />
+      ) : (
+        <GitBranch size={11} />
+      )}
+      {threatMode ? 'Threat Paths' : 'Survival Paths'}
     </button>
   )
 }
@@ -142,15 +162,20 @@ export function StandingsRow({
         <div className="flex flex-col">
           <StatusBadge status={row.status} />
           <span className={`text-xs mt-0.5 ${dimmedFg[row.status]}`}>
-            {row.survivalPct}%{' '}
-            {row.status === 'safe' || row.status === 'qualified' ? 'Win' : 'Survive'}
+            {row.survivalPct}% Survive
           </span>
         </div>
       </TableCell>
 
       <TableCell className="hidden lg:flex justify-end items-center gap-2">
-        {row.pill && <span className="inline-flex shrink-0"><SurvivalPill {...row.pill} /></span>}
-        {onSelectScenarios && <SurvivalPathsButton onClick={onSelectScenarios} status={row.status} />}
+        {row.pill && (
+          <span className="inline-flex shrink-0">
+            <SurvivalPill {...row.pill} />
+          </span>
+        )}
+        {onSelectScenarios && (
+          <SurvivalPathsButton onClick={onSelectScenarios} status={row.status} />
+        )}
       </TableCell>
 
       {/* Mobile layout — spans all columns */}
@@ -173,13 +198,12 @@ export function StandingsRow({
           <div className="overflow-hidden">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-0.5 pl-8">
               <StatusBadge status={row.status} />
-              <span className={`text-xs ${dimmedFg[row.status]}`}>
-                {row.survivalPct}%{' '}
-                {row.status === 'safe' || row.status === 'qualified' ? 'Win' : 'Survive'}
-              </span>
+              <span className={`text-xs ${dimmedFg[row.status]}`}>{row.survivalPct}% Survive</span>
               {row.bonus > 0 && <span className="text-xs text-zinc-500">+{row.bonus} bonus</span>}
               {row.pill && <SurvivalPill {...row.pill} />}
-              {onSelectScenarios && <SurvivalPathsButton onClick={onSelectScenarios} status={row.status} />}
+              {onSelectScenarios && (
+                <SurvivalPathsButton onClick={onSelectScenarios} status={row.status} />
+              )}
             </div>
           </div>
         </div>

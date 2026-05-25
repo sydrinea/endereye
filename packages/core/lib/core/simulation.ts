@@ -92,16 +92,15 @@ export function applyElimination(players: SimPlayer[], cut: EliminationCut): Sim
 
 /**
  * Assigns scores for one seed in worst-case fashion:
- * target gets the minimum score, opponents are elevated as needed to push
- * target to exactly the cut boundary.
+ * target DNFs (0 points), all scores are available for opponents to be elevated
+ * as needed to push target to exactly the cut boundary.
  */
 function applyWorstCaseSeed(state: SimPlayer[], targetUuid: string): void {
-  const scores = getAvailableScores(state.length)
+  const scores = getAvailableScores(state.length - 1)
   const tIdx = state.findIndex((p) => p.uuid === targetUuid)
-  state[tIdx].point += scores[scores.length - 1]
 
   const targetPts = state[tIdx].point
-  const avail = scores.slice(0, -1).sort((a, b) => a - b)
+  const avail = [...scores].sort((a, b) => a - b)
   const others = state.filter((p) => p.uuid !== targetUuid)
   const unassigned = [...others]
 
@@ -415,91 +414,82 @@ export function runFullHeatmapSimulation(
 
 export interface PlacementConstraint {
   uuid: string
-  minPlace: number
+  minPlace: number  // survival/DNF: placement >= minPlace (opponent places this badly or worse)
+  maxPlace?: number  // threat: placement <= maxPlace (opponent places this well or better)
 }
 
 export interface SurvivalScenario {
   constraints: PlacementConstraint[]
   survivalProbability: number
   frequency: number
+  complementSurvivalProbability?: number
 }
 
-export function runScenarioAnalysis(
-  targetUuid: string,
-  players: SimPlayer[],
-  currentRound: number,
-  cuts: EliminationCut[],
-  qualifyCount: number,
-  iterations = 20000,
-  fixedTargetLast = false,
+export interface SharedRecord {
+  placements: Record<string, number>
+  survivedByUuid: Record<string, boolean>
+}
+
+function simulateAndRecordFirstRound(
+  alive: SimPlayer[],
+  round: number,
+  stats: LobbyStats,
+  scores: number[],
+): { newAlive: SimPlayer[]; placements: Record<string, number> } {
+  const ranked = rankPlayers(alive, round, stats)
+  const placements: Record<string, number> = {}
+  ranked.forEach((entry, place) => {
+    placements[alive[entry.idx].uuid] = place + 1
+  })
+  const newAlive = alive.map((p, i) => ({
+    ...p,
+    point: p.point + scores[ranked.findIndex((entry) => entry.idx === i)],
+  }))
+  return { newAlive, placements }
+}
+
+function constraintsMet(
+  placements: Record<string, number>,
+  constraints: PlacementConstraint[],
+): boolean {
+  return constraints.every((c) =>
+    c.maxPlace !== undefined
+      ? (placements[c.uuid] ?? Infinity) <= c.maxPlace
+      : (placements[c.uuid] ?? 0) >= c.minPlace,
+  )
+}
+
+function isFeasible(constraints: PlacementConstraint[]): boolean {
+  const bounds = constraints.map((c) => c.maxPlace ?? Infinity).sort((a, b) => a - b)
+  return bounds.every((t, i) => t >= i + 1)
+}
+
+function buildScenariosFromRecords(
+  records: { placements: Record<string, number>; survived: boolean }[],
+  opponents: SimPlayer[],
+  n: number,
+  iterations: number,
+  baseP: number,
+  maxDangerous = 5,
+  maxDepth = 3,
+  maxScenarios = 8,
+  threatMode = false,
 ): SurvivalScenario[] {
-  const nextCutEntry = cuts.find((c) => c.afterSeed >= currentRound)
-  if (!nextCutEntry) return []
-
-  const stats = calculateLobbyStats(players)
-  const scores = getAvailableScores(players.length)
-  const n = players.length
-
-  type SimRecord = { placements: Record<string, number>; survived: boolean }
-  const records: SimRecord[] = []
-
-  for (let i = 0; i < iterations; i++) {
-    let alive = players.map((p) => ({ ...p }))
-    const placements: Record<string, number> = {}
-
-    for (let r = currentRound; r <= nextCutEntry.afterSeed; r++) {
-      if (alive.length === 0) break
-      if (r === currentRound) {
-        if (fixedTargetLast) {
-          // Pin target to last place; randomly rank everyone else for the remaining slots
-          const tIdx = alive.findIndex((p) => p.uuid === targetUuid)
-          const others = alive.filter((_, i) => i !== tIdx)
-          const otherRanked = rankPlayers(others, r, stats)
-          const otherScores = scores.slice(0, n - 1)
-          placements[targetUuid] = n
-          otherRanked.forEach((entry, place) => {
-            placements[others[entry.idx].uuid] = place + 1
-          })
-          alive = alive.map((p) => {
-            if (p.uuid === targetUuid) return { ...p, point: p.point }
-            const oIdx = others.findIndex((o) => o.uuid === p.uuid)
-            const rank = otherRanked.findIndex((e) => e.idx === oIdx)
-            return { ...p, point: p.point + (otherScores[rank] ?? 0) }
-          })
-        } else {
-          const ranked = rankPlayers(alive, r, stats)
-          ranked.forEach((entry, place) => {
-            placements[alive[entry.idx].uuid] = place + 1
-          })
-          alive = alive.map((p, i) => ({
-            ...p,
-            point: p.point + scores[ranked.findIndex((entry) => entry.idx === i)],
-          }))
-        }
-      } else {
-        alive = simulateRound(alive, r, stats)
-      }
-      const cut = cuts.find((c) => c.afterSeed === r)
-      if (cut) alive = applyElimination(alive, cut)
-    }
-
-    records.push({ placements, survived: alive.some((p) => p.uuid === targetUuid) })
-  }
-
-  const naturalSurvived = records.filter((r) => r.survived).length
-  if (naturalSurvived === 0) return []
-
-  const baseP = naturalSurvived / iterations
-  const thresholds = [...new Set([3, 5, 7, n].filter((t) => t <= n && t > 1))]
+  // Threat mode: upper-bound thresholds (placement <= t = "places this well or better")
+  // Survival mode: lower-bound thresholds (placement >= t = "places this badly or worse")
+  const thresholds = threatMode
+    ? [...new Set([1, 2, 3, 5].filter((t) => t < n))]
+    : [...new Set([3, 5, 7, n].filter((t) => t <= n && t > 1))]
   const MIN_FREQ = 0.05
 
-  const opponents = players.filter((p) => p.uuid !== targetUuid)
-
-  // Score each opponent by how much their placement correlates with target survival
   const dangerScores = opponents.map((opp) => {
     let score = 0
     for (const t of thresholds) {
-      const matching = records.filter((rec) => rec.placements[opp.uuid] >= t)
+      const matching = records.filter((rec) =>
+        threatMode
+          ? (rec.placements[opp.uuid] ?? Infinity) <= t
+          : (rec.placements[opp.uuid] ?? 0) >= t,
+      )
       if (matching.length < iterations * MIN_FREQ) continue
       const condP = matching.filter((rec) => rec.survived).length / matching.length
       score += Math.abs(condP - baseP)
@@ -507,50 +497,75 @@ export function runScenarioAnalysis(
     return { uuid: opp.uuid, score }
   })
   dangerScores.sort((a, b) => b.score - a.score)
-  const dangerous = dangerScores.slice(0, 3).map((d) => d.uuid)
+  const dangerous = dangerScores.slice(0, maxDangerous).map((d) => d.uuid)
 
   const candidates: SurvivalScenario[] = []
 
-  // Single-opponent scenarios
-  for (const uuid of dangerous) {
-    for (const t of thresholds) {
-      const matching = records.filter((rec) => rec.placements[uuid] >= t)
-      const frequency = matching.length / iterations
-      if (frequency < MIN_FREQ) continue
-      candidates.push({
-        constraints: [{ uuid, minPlace: t }],
-        survivalProbability: matching.filter((rec) => rec.survived).length / matching.length,
-        frequency,
-      })
-    }
+  function makeConstraint(uuid: string, t: number): PlacementConstraint {
+    return threatMode ? { uuid, minPlace: 1, maxPlace: t } : { uuid, minPlace: t }
   }
 
-  // Two-opponent scenarios
-  for (let a = 0; a < dangerous.length; a++) {
-    for (let b = a + 1; b < dangerous.length; b++) {
-      for (const tA of thresholds) {
-        for (const tB of thresholds) {
-          const matching = records.filter(
-            (rec) => rec.placements[dangerous[a]] >= tA && rec.placements[dangerous[b]] >= tB,
-          )
-          const frequency = matching.length / iterations
-          if (frequency < MIN_FREQ) continue
-          candidates.push({
-            constraints: [
-              { uuid: dangerous[a], minPlace: tA },
-              { uuid: dangerous[b], minPlace: tB },
-            ],
-            survivalProbability: matching.filter((rec) => rec.survived).length / matching.length,
-            frequency,
-          })
+  function addCandidate(constraints: PlacementConstraint[]) {
+    if (threatMode && !isFeasible(constraints)) return
+    const matching = records.filter((rec) => constraintsMet(rec.placements, constraints))
+    const frequency = matching.length / iterations
+    if (frequency < MIN_FREQ) return
+    const survived = matching.filter((rec) => rec.survived).length
+    const survivalProbability = survived / matching.length
+    const notMatching = records.filter((rec) => !constraintsMet(rec.placements, constraints))
+    const complementSurvivalProbability =
+      notMatching.length > 0
+        ? notMatching.filter((rec) => rec.survived).length / notMatching.length
+        : baseP
+    candidates.push({ constraints, survivalProbability, frequency, complementSurvivalProbability })
+  }
+
+  // k=1
+  for (const uuid of dangerous) {
+    for (const t of thresholds) addCandidate([makeConstraint(uuid, t)])
+  }
+
+  // k=2
+  if (maxDepth >= 2) {
+    for (let a = 0; a < dangerous.length; a++) {
+      for (let b = a + 1; b < dangerous.length; b++) {
+        for (const tA of thresholds) {
+          for (const tB of thresholds) {
+            addCandidate([makeConstraint(dangerous[a], tA), makeConstraint(dangerous[b], tB)])
+          }
         }
       }
     }
   }
 
-  candidates.sort((a, b) => b.survivalProbability - a.survivalProbability)
+  // k=3
+  if (maxDepth >= 3) {
+    for (let a = 0; a < dangerous.length; a++) {
+      for (let b = a + 1; b < dangerous.length; b++) {
+        for (let c = b + 1; c < dangerous.length; c++) {
+          for (const tA of thresholds) {
+            for (const tB of thresholds) {
+              for (const tC of thresholds) {
+                addCandidate([
+                  makeConstraint(dangerous[a], tA),
+                  makeConstraint(dangerous[b], tB),
+                  makeConstraint(dangerous[c], tC),
+                ])
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 
-  // Prune: remove scenarios dominated by a scenario with looser constraints + equal/better survival
+  // Threat mode: worst threats first (lowest survival). Survival mode: best paths first.
+  candidates.sort((a, b) =>
+    threatMode
+      ? a.survivalProbability - b.survivalProbability
+      : b.survivalProbability - a.survivalProbability,
+  )
+
   const pruned: SurvivalScenario[] = []
   for (const s of candidates) {
     const dominated = pruned.some(
@@ -564,5 +579,158 @@ export function runScenarioAnalysis(
     if (!dominated) pruned.push(s)
   }
 
-  return pruned.slice(0, 8)
+  return pruned.slice(0, maxScenarios)
+}
+
+export function runBatchSimulation(
+  players: SimPlayer[],
+  currentRound: number,
+  cuts: EliminationCut[],
+  iterations = 20000,
+): SharedRecord[] {
+  const nextCutEntry = cuts.find((c) => c.afterSeed >= currentRound)
+  if (!nextCutEntry) return []
+
+  const stats = calculateLobbyStats(players)
+  const scores = getAvailableScores(players.length)
+  const records: SharedRecord[] = []
+
+  for (let i = 0; i < iterations; i++) {
+    let alive = players.map((p) => ({ ...p }))
+    let placements: Record<string, number> = {}
+
+    for (let r = currentRound; r <= nextCutEntry.afterSeed; r++) {
+      if (alive.length === 0) break
+      if (r === currentRound) {
+        const result = simulateAndRecordFirstRound(alive, r, stats, scores)
+        alive = result.newAlive
+        placements = result.placements
+      } else {
+        alive = simulateRound(alive, r, stats)
+      }
+      const cut = cuts.find((c) => c.afterSeed === r)
+      if (cut) alive = applyElimination(alive, cut)
+    }
+
+    const aliveSet = new Set(alive.map((p) => p.uuid))
+    const survivedByUuid: Record<string, boolean> = {}
+    for (const p of players) survivedByUuid[p.uuid] = aliveSet.has(p.uuid)
+    records.push({ placements, survivedByUuid })
+  }
+
+  return records
+}
+
+export function derivePlayerScenarios(
+  targetUuid: string,
+  records: SharedRecord[],
+  players: SimPlayer[],
+  options?: {
+    maxDangerous?: number
+    maxDepth?: number
+    maxScenarios?: number
+    threatMode?: boolean
+  },
+): { scenarios: SurvivalScenario[]; baseProbability: number } {
+  const naturalSurvived = records.filter((r) => r.survivedByUuid[targetUuid]).length
+  if (naturalSurvived === 0) return { scenarios: [], baseProbability: 0 }
+
+  const baseP = naturalSurvived / records.length
+  const n = players.length
+  const opponents = players.filter((p) => p.uuid !== targetUuid)
+
+  // Adapt SharedRecord to the shape buildScenariosFromRecords expects
+  const adapted = records.map((r) => ({ placements: r.placements, survived: r.survivedByUuid[targetUuid] }))
+
+  const scenarios = buildScenariosFromRecords(
+    adapted,
+    opponents,
+    n,
+    records.length,
+    baseP,
+    options?.maxDangerous ?? 5,
+    options?.maxDepth ?? 3,
+    options?.maxScenarios ?? 8,
+    options?.threatMode ?? false,
+  )
+
+  return { scenarios, baseProbability: baseP }
+}
+
+export function runScenarioAnalysis(
+  targetUuid: string,
+  players: SimPlayer[],
+  currentRound: number,
+  cuts: EliminationCut[],
+  _qualifyCount: number,
+  iterations = 20000,
+  fixedTargetLast = false,
+  threatMode = false,
+): { scenarios: SurvivalScenario[]; baseProbability: number } {
+  const nextCutEntry = cuts.find((c) => c.afterSeed >= currentRound)
+  if (!nextCutEntry) return { scenarios: [], baseProbability: 0 }
+
+  const stats = calculateLobbyStats(players)
+  const scores = getAvailableScores(players.length)
+  const n = players.length
+
+  type SimRecord = { placements: Record<string, number>; survived: boolean }
+  const records: SimRecord[] = []
+
+  for (let i = 0; i < iterations; i++) {
+    let alive = players.map((p) => ({ ...p }))
+    let placements: Record<string, number> = {}
+
+    for (let r = currentRound; r <= nextCutEntry.afterSeed; r++) {
+      if (alive.length === 0) break
+      if (r === currentRound) {
+        if (fixedTargetLast) {
+          const tIdx = alive.findIndex((p) => p.uuid === targetUuid)
+          const others = alive.filter((_, i) => i !== tIdx)
+          const otherRanked = rankPlayers(others, r, stats)
+          const otherScores = getAvailableScores(others.length)
+          placements[targetUuid] = n
+          otherRanked.forEach((entry, place) => {
+            placements[others[entry.idx].uuid] = place + 1
+          })
+          alive = alive.map((p) => {
+            if (p.uuid === targetUuid) return { ...p, point: p.point }
+            const oIdx = others.findIndex((o) => o.uuid === p.uuid)
+            const rank = otherRanked.findIndex((e) => e.idx === oIdx)
+            return { ...p, point: p.point + (otherScores[rank] ?? 0) }
+          })
+        } else {
+          const result = simulateAndRecordFirstRound(alive, r, stats, scores)
+          alive = result.newAlive
+          placements = result.placements
+        }
+      } else {
+        alive = simulateRound(alive, r, stats)
+      }
+      const cut = cuts.find((c) => c.afterSeed === r)
+      if (cut) alive = applyElimination(alive, cut)
+    }
+
+    records.push({ placements, survived: alive.some((p) => p.uuid === targetUuid) })
+  }
+
+  const naturalSurvived = records.filter((r) => r.survived).length
+  if (naturalSurvived === 0) return { scenarios: [], baseProbability: 0 }
+
+  const baseP = naturalSurvived / iterations
+  const opponents = players.filter((p) => p.uuid !== targetUuid)
+
+  const scenarios = buildScenariosFromRecords(
+    records,
+    opponents,
+    n,
+    iterations,
+    baseP,
+    5,
+    3,
+    8,
+    threatMode,
+  )
+
+  return { scenarios, baseProbability: baseP }
 }

@@ -5,9 +5,11 @@ import type { SimPlayer } from './simulation'
 import {
   calculateLobbyStats,
   canStillWinDeterministic,
+  derivePlayerScenarios,
   getClinchScore,
   getPlayerPower,
   isSafeAtNextCutDeterministic,
+  runBatchSimulation,
   runMonteCarlo,
   runScenarioAnalysis,
   toSimPlayer,
@@ -66,8 +68,13 @@ function computeActiveOdds(
   | 'survivalProbability'
 > {
   const canStillWin = canStillWinDeterministic(uuid, alivePlayers, currentRound, cuts, qualifyCount)
+  const nextCut = cuts.find((c) => c.afterSeed >= currentRound)
+  const atCutlineSeed = nextCut?.afterSeed === currentRound
+  const isZeroOutCut = nextCut !== undefined && 'rule' in nextCut && nextCut.rule === 'zero_out'
   const isSafeAtNextCut =
-    canStillWin && isSafeAtNextCutDeterministic(uuid, alivePlayers, currentRound, cuts)
+    (atCutlineSeed || isZeroOutCut) &&
+    canStillWin &&
+    isSafeAtNextCutDeterministic(uuid, alivePlayers, currentRound, cuts)
   const clinch = getClinchScore(uuid, alivePlayers, currentRound, cuts)
   const mc = mcResults[uuid]
   return {
@@ -182,6 +189,16 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
   )
 }
 
+function buildAlivePlayers(ctx: EventContext, effectiveSchedule: EliminationCut[]) {
+  const { currentRound, brackets, players } = ctx
+  const lastSeed = Math.max(...effectiveSchedule.map((c) => c.afterSeed))
+  if (currentRound > lastSeed) return null
+  const playerLookup = new Map(players.map((p) => [p.uuid, p]))
+  return brackets
+    .filter((b) => !b.eliminated)
+    .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
+}
+
 export function computeSurvivalScenarios(
   ctx: EventContext,
   targetUuid: string,
@@ -191,57 +208,65 @@ export function computeSurvivalScenarios(
   const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
     cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
   )
-
-  const { currentRound, brackets, players } = ctx
-  const lastSeed = Math.max(...effectiveSchedule.map((c) => c.afterSeed))
-  if (currentRound > lastSeed) return []
-
-  const playerLookup = new Map(players.map((p) => [p.uuid, p]))
-  const alivePlayers = brackets
-    .filter((b) => !b.eliminated)
-    .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
-
-  const target = alivePlayers.find((p) => p.uuid === targetUuid)
-  if (!target) return []
-
+  const alivePlayers = buildAlivePlayers(ctx, effectiveSchedule)
+  if (!alivePlayers?.find((p) => p.uuid === targetUuid)) return []
   return runScenarioAnalysis(
     targetUuid,
     alivePlayers,
-    currentRound,
+    ctx.currentRound,
     effectiveSchedule,
     qualifyCount,
-  )
+  ).scenarios
 }
 
-export function computeFailureScenarios(
-  ctx: EventContext,
-  targetUuid: string,
-): import('./simulation').SurvivalScenario[] {
+// Opaque handle — do not construct directly; use buildScenarioRecords / deriveScenariosFromRecords
+export interface ScenarioRecords {
+  _records: import('./simulation').SharedRecord[]
+  _players: SimPlayer[]
+}
+
+export function buildScenarioRecords(ctx: EventContext): ScenarioRecords | null {
   const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
   const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
   const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
     cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
   )
+  const alivePlayers = buildAlivePlayers(ctx, effectiveSchedule)
+  if (!alivePlayers || alivePlayers.length === 0) return null
+  const records = runBatchSimulation(alivePlayers, ctx.currentRound, effectiveSchedule)
+  return { _records: records, _players: alivePlayers }
+}
 
-  const { currentRound, brackets, players } = ctx
-  const lastSeed = Math.max(...effectiveSchedule.map((c) => c.afterSeed))
-  if (currentRound > lastSeed) return []
+export function deriveScenariosFromRecords(
+  targetUuid: string,
+  prepared: ScenarioRecords,
+  options?: { threatMode?: boolean },
+): { scenarios: import('./simulation').SurvivalScenario[]; baseProbability: number } {
+  return derivePlayerScenarios(targetUuid, prepared._records, prepared._players, options)
+}
 
-  const playerLookup = new Map(players.map((p) => [p.uuid, p]))
-  const alivePlayers = brackets
-    .filter((b) => !b.eliminated)
-    .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
-
-  const target = alivePlayers.find((p) => p.uuid === targetUuid)
-  if (!target) return []
-
-  return runScenarioAnalysis(
+export function computeFailureScenarios(
+  ctx: EventContext,
+  targetUuid: string,
+  threatMode = false,
+): { scenarios: import('./simulation').SurvivalScenario[]; dnfSurvivalProbability: number } {
+  const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
+  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
+  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
+    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
+  )
+  const alivePlayers = buildAlivePlayers(ctx, effectiveSchedule)
+  if (!alivePlayers?.find((p) => p.uuid === targetUuid))
+    return { scenarios: [], dnfSurvivalProbability: 0 }
+  const { scenarios, baseProbability } = runScenarioAnalysis(
     targetUuid,
     alivePlayers,
-    currentRound,
+    ctx.currentRound,
     effectiveSchedule,
     qualifyCount,
     20000,
     true,
+    threatMode,
   )
+  return { scenarios, dnfSurvivalProbability: baseProbability }
 }
