@@ -6,6 +6,7 @@ import { FetchError } from './errors'
 const PHASE_INDEX: Record<EventKind, number> = {
   mss: 1,
   lcq: 3,
+  worlds: 0,
 }
 
 export async function enrichEventPlayers(

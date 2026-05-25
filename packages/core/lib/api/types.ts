@@ -141,7 +141,7 @@ export const EventSchema = z.object({
 
 export type Event = z.infer<typeof EventSchema>
 
-export type EventKind = 'lcq' | 'mss'
+export type EventKind = 'lcq' | 'worlds' | 'mss'
 
 export const LeaderboardSchema = z.object({
   season: z.object({

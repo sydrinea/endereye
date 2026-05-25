@@ -1,6 +1,13 @@
+'use client'
+
+import { usePathname } from 'next/navigation'
 import Ranked from '@/components/icons/Ranked'
 
+const HIDDEN_PATHS = ['/live']
+
 export function Footer() {
+  const pathname = usePathname()
+  if (HIDDEN_PATHS.includes(pathname)) return null
   return (
     <footer className="mt-16 border-t border-zinc-800 bg-zinc-900">
       <div className="mx-auto max-w-5xl px-6 py-12 flex flex-col gap-8">

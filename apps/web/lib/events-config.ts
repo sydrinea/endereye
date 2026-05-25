@@ -3,7 +3,7 @@ import { getR2Object, putR2Object } from './r2'
 export interface R2EventConfig {
   slug: string
   label: string
-  kind: 'lcq' | 'mss'
+  kind: 'lcq' | 'worlds' | 'mss'
   season: number
   prefix: string // R2 key prefix, e.g. "lcq/10" or "worlds/2026"
   startDate: string // ISO string
@@ -15,7 +15,7 @@ export interface R2EventConfig {
 export interface EventConfig {
   slug: string
   label: string
-  kind: 'lcq' | 'mss'
+  kind: 'lcq' | 'worlds' | 'mss'
   season: number
   prefix: string
   startDate: Date
