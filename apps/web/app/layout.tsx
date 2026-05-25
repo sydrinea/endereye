@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist_Mono, Raleway, Lora } from 'next/font/google'
 import localFont from 'next/font/local'
+import { Analytics } from '@vercel/analytics/next'
 
 import { Footer } from '@/components/layout'
 import './globals.css'
@@ -33,7 +34,6 @@ const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
 })
 
-
 export const metadata: Metadata = {
   title: 'endereye | Live',
   description: 'Live survival odds for MCSR Ranked LCQ and MSS events',
@@ -52,6 +52,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-zinc-950">
         <div className="flex-1">{children}</div>
         <Footer />
+        <Analytics />
       </body>
     </html>
   )
