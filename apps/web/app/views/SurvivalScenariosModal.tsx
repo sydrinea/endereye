@@ -174,25 +174,37 @@ export function SurvivalScenariosModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
-          <div className="flex items-center gap-2">
-            {threatView ? (
-              <ShieldAlert size={15} className="text-zinc-400" />
-            ) : (
-              <GitBranch size={15} className="text-zinc-400" />
-            )}
-            <span className="font-display text-zinc-100 text-sm">
-              {threatView ? 'Threat Paths' : 'Survival Paths'}
-            </span>
-            <span className="text-zinc-500 text-sm">·</span>
-            <span className="font-display font-medium text-zinc-300 text-sm">{view.nickname}</span>
+        <div className="px-5 py-4 border-b border-zinc-800">
+          {/* Top Row: Title & Close Button */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {threatView ? (
+                <ShieldAlert size={15} className="text-zinc-400" />
+              ) : (
+                <GitBranch size={15} className="text-zinc-400" />
+              )}
+              <span className="font-display text-zinc-100 text-sm">
+                {threatView ? 'Threat Paths' : 'Survival Paths'}
+              </span>
+              <span className="text-zinc-500 text-sm">·</span>
+              <span className="font-display font-medium text-zinc-300 text-sm">
+                {view.nickname}
+              </span>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-7 h-7 flex items-center justify-center rounded-md border border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors cursor-pointer shrink-0"
+            >
+              <X size={14} />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-md border border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors cursor-pointer"
-          >
-            <X size={14} />
-          </button>
+
+          {/* Bottom Row: The Info Blurb */}
+          <p className="mt-3 text-xs text-zinc-500 leading-relaxed pr-2">
+            These odds estimate how completing vs. DNFing changes a player&apos;s survival chances.
+            The scenarios below show specific opponent finishes that alter those odds, ordered from
+            highest to lowest impact.
+          </p>
         </div>
 
         {/* Natural odds */}

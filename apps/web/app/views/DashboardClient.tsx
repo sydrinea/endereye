@@ -278,7 +278,7 @@ export function DashboardClient({
           />
           <Banner
             label="Shifting %'s"
-            detail="Percentages may fluctuate slightly on refresh. The site runs thousands of simulations to assign odds, so slight variations are completely normal."
+            detail="Percentages may fluctuate slightly on refresh and when reopening Threat/Survival Paths. The site runs thousands of simulations to assign odds, so variations are completely normal."
           />
           <PlayerFilter
             players={allNicknames}
