@@ -46,11 +46,16 @@ export async function getAllEvents(): Promise<EventConfig[]> {
 export async function getActiveEvent(): Promise<EventConfig | null> {
   const r2 = await getR2EventsConfig()
   if (!r2 || r2.length === 0) return null
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  const future = r2
+
+  const cutoff = new Date()
+  cutoff.setHours(0, 0, 0, 0)
+  // show most recent event for up to 3 days
+  cutoff.setDate(cutoff.getDate() - 3)
+
+  const activeOrFuture = r2
     .map(toEventConfig)
-    .filter((e) => e.startDate >= now)
+    .filter((e) => e.startDate >= cutoff)
     .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
-  return future[0] ?? null
+
+  return activeOrFuture[0] ?? null
 }
