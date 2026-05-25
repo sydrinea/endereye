@@ -9,7 +9,7 @@ dist
 *.tsbuildinfo
 
 # API caching
-archive
+archive/events
 
 # Admin
 PRE_EVENT_CHECKLIST.md

@@ -1,3 +1,5 @@
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import Ranked from '@/components/icons/Ranked'
 import { Countdown } from './Countdown'
 import { EventCard } from './EventCard'
@@ -5,12 +7,12 @@ import type { EventConfig } from '../../lib/events-config'
 
 interface Props {
   event: EventConfig | null
-  pastEvents: EventConfig[]
   upcomingEvents: EventConfig[]
+  hasPastEvents?: boolean
   isOver?: boolean
 }
 
-export function HeroSection({ event, pastEvents, upcomingEvents, isOver = false }: Props) {
+export function HeroSection({ event, upcomingEvents, hasPastEvents = false, isOver = false }: Props) {
   const dateLabel = event?.startDate.toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
@@ -35,15 +37,24 @@ export function HeroSection({ event, pastEvents, upcomingEvents, isOver = false 
         )}
       </section>
 
-      {(upcomingEvents.length > 0 || pastEvents.length > 0) && (
+      {(upcomingEvents.length > 0 || hasPastEvents) && (
         <section className="flex flex-col items-center gap-3 pt-12 pb-16 px-6">
-          <p className="text-xs text-zinc-600 uppercase tracking-widest mb-1">Other Events</p>
-          {upcomingEvents.map((e) => (
-            <EventCard key={e.slug} event={e} upcoming />
-          ))}
-          {pastEvents.map((e) => (
-            <EventCard key={e.slug} event={e} />
-          ))}
+          {upcomingEvents.length > 0 && (
+            <>
+              <p className="text-xs text-zinc-600 uppercase tracking-widest mb-1">Other Events</p>
+              {upcomingEvents.map((e) => (
+                <EventCard key={e.slug} event={e} upcoming />
+              ))}
+            </>
+          )}
+          {hasPastEvents && (
+            <Link
+              href="/archive"
+              className="group inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mt-2"
+            >
+              View Archives <ArrowRight size={14} />
+            </Link>
+          )}
         </section>
       )}
     </main>

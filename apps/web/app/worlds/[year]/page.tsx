@@ -1,5 +1,6 @@
 import { getEventContext } from '../../../lib/event-data'
 import { DashboardWrapper } from '@/app/views/DashboardWrapper'
+import { NoData } from '@/app/views/NoData'
 import { getAllEvents, getActiveEvent } from '@/lib/events-config'
 
 export const revalidate = false
@@ -26,13 +27,7 @@ export default async function Page({
     event?.qualifyCount,
   )
 
-  if (!eventData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen text-neutral-400 text-sm">
-        No data found for {year} World Championships.
-      </div>
-    )
-  }
+  if (!eventData) return <NoData label={eventLabel} />
 
   const { seed: seedParam } = await searchParams
   const defaultSeed = Math.max(eventData.currentRound - 1, 0)

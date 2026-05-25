@@ -19,5 +19,12 @@ export default async function Page() {
   const isLive = activeEvent ? now >= activeEvent.startDate : false
   const isOver = isLive ? (eventData?.currentRound ?? 0) > 10 : false
 
-  return <HeroSection event={activeEvent} pastEvents={pastEvents} upcomingEvents={upcomingEvents} isOver={isOver} />
+  return (
+    <HeroSection
+      event={activeEvent}
+      upcomingEvents={upcomingEvents}
+      hasPastEvents={pastEvents.length > 0}
+      isOver={isOver}
+    />
+  )
 }
