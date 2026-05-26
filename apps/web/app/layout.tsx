@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Geist_Mono, Raleway, Lora } from 'next/font/google'
 import localFont from 'next/font/local'
 import { Analytics } from '@vercel/analytics/next'
@@ -34,9 +34,29 @@ const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
 })
 
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://lcqtracker.vercel.app'
+
 export const metadata: Metadata = {
+  metadataBase: new URL(BASE_URL),
   title: 'endereye | Live',
   description: 'Live survival odds for MCSR Ranked LCQ and MSS events',
+  openGraph: {
+    type: 'website',
+    title: 'endereye | Live',
+    description: 'Live survival odds for MCSR Ranked LCQ and MSS events',
+    images: [{ url: '/api/og?type=default', width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'endereye | Live',
+    description: 'Live survival odds for MCSR Ranked LCQ and MSS events',
+    images: ['/api/og?type=default'],
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#4ade80',
+  initialScale: 1,
 }
 
 export default function RootLayout({

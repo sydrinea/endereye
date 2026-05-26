@@ -1,10 +1,30 @@
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import { getEventContext } from '../../../lib/event-data'
 import { DashboardWrapper } from '@/app/views/DashboardWrapper'
 import { NoData } from '@/app/views/NoData'
 import { getAllEvents, getActiveEvent } from '@/lib/events-config'
+import { buildMeta } from '@/lib/og-metadata'
 
 export const revalidate = false
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ season: string }>
+}): Promise<Metadata> {
+  const { season: seasonParam } = await params
+  const season = Number(seasonParam)
+  const allEvents = await getAllEvents()
+  const event = allEvents.find((e) => e.kind === 'lcq' && e.season === season)
+  if (!event) return {}
+  const imagePath = `/api/og?type=event&label=${encodeURIComponent(event.label)}`
+  return buildMeta({
+    title: `endereye | ${event.label}`,
+    description: `Live survival odds and match tracking for ${event.label}.`,
+    imagePath,
+  })
+}
 
 export default async function Page({
   params,
