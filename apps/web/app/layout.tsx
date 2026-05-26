@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Geist_Mono, Raleway, Lora } from 'next/font/google'
 import localFont from 'next/font/local'
 import { Analytics } from '@vercel/analytics/next'
-
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { Footer } from '@/components/layout'
 import './globals.css'
 
@@ -53,6 +53,7 @@ export default function RootLayout({
         <div className="flex-1">{children}</div>
         <Footer />
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
