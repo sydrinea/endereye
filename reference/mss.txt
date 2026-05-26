@@ -1,0 +1,25 @@
+Midseason Showdown
+The Midseason Showdown will be a one-day event. All players with Top 100 in phase points leaderboard by the end of Phase 2 will be automatically invited. By the end of the event, the top 10 players will earn between 10 and 25 phase points, which increase their chances of being invited to the next Playoffs. Having 4 winners simulates the qualifier format at the end of the season. Learn more about the phase point system here.
+
+Players will have 15 minutes for each seed, or until up to 24 players have completed the seed, whichever comes first. Players who complete the seed will earn up to 24 points based on their placement. The point distribution will scale evenly depending on the number of possible completions for that round (max of 24).
+
+At the end of some seeds, players will be eliminated based on the amount of points they have earned. Here is the elimination breakdown (Each elimination will happen AFTER the seed that it corresponds with)
+
+Seed 1 - No Eliminations
+Seed 2 - No Eliminations
+Seed 3 - All players with 0 points are eliminated
+Seed 4 - No Eliminations
+Seed 5 - Bottom 50% of remaining players are eliminated
+Seed 6 - No Eliminations
+Seed 7 - Only top 10 total points move on
+Seed 8 - Top 8 total points move on
+Seed 9 - Top 6 total points move on
+Seed 10 - Top 4 total points win!
+In the event of a point tie that disrupts an elimination (ex. 10th and 11th are tied after seed 7), all involved players will move on to the next round, but the next elimination will remain unchanged. In the rare case there is a tie for last after seed 10, a sudden death seed will be played.
+
+Rewards Distibution
+Placement	Phase point rewards
+1st to 4th	25 Points
+5th and 6th	20 Points
+7th and 8th	15 Points
+9th and 10th	10 Points
