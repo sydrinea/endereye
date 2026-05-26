@@ -42,7 +42,8 @@ export function buildEvent(seedMatches: Match[], bonusMap: Map<string, number>):
   const initialRankMap = new Map<string, number>()
   let ir = 1
   for (let i = 0; i < initialSorted.length; i++) {
-    if (i > 0 && (bonusMap.get(initialSorted[i]) ?? 0) < (bonusMap.get(initialSorted[i - 1]) ?? 0)) ir = i + 1
+    if (i > 0 && (bonusMap.get(initialSorted[i]) ?? 0) < (bonusMap.get(initialSorted[i - 1]) ?? 0))
+      ir = i + 1
     initialRankMap.set(initialSorted[i], ir)
   }
 
@@ -129,6 +130,122 @@ export function buildEvent(seedMatches: Match[], bonusMap: Map<string, number>):
     matches: sorted.map((m) => m.id),
     brackets,
     players: allSeenPlayers,
+  }
+}
+
+export interface ApiBracketEntry {
+  uuid: string
+  point: number
+  bonus: number
+  eliminated: boolean
+  completions: Array<{ place: number; score: number } | null>
+}
+
+export interface ApiEventData {
+  currentRound: number
+  matches: number[]
+  brackets: ApiBracketEntry[]
+  players: Array<{ uuid: string; nickname: string }>
+}
+
+export function buildEventFromApiResponse(apiData: ApiEventData): Event {
+  const field = apiData.brackets.map((b) => b.uuid)
+  const bonusMap = new Map(apiData.brackets.map((b) => [b.uuid, b.bonus]))
+  const points = new Map(field.map((uuid) => [uuid, bonusMap.get(uuid) ?? 0]))
+
+  const active = new Set(field)
+  const cutEliminated = new Set<string>()
+
+  const completionHistory = new Map<string, BracketEntry['completions'][number][]>(
+    field.map((uuid) => [uuid, []]),
+  )
+
+  const initialSorted = [...field].sort((a, b) => {
+    const ba = bonusMap.get(a) ?? 0
+    const bb = bonusMap.get(b) ?? 0
+    return bb !== ba ? bb - ba : a.localeCompare(b)
+  })
+  const initialRankMap = new Map<string, number>()
+  let ir = 1
+  for (let i = 0; i < initialSorted.length; i++) {
+    if (i > 0 && (bonusMap.get(initialSorted[i]) ?? 0) < (bonusMap.get(initialSorted[i - 1]) ?? 0))
+      ir = i + 1
+    initialRankMap.set(initialSorted[i], ir)
+  }
+
+  const ranksHistory = new Map<string, number[]>(
+    field.map((uuid) => [uuid, [initialRankMap.get(uuid) ?? field.length]]),
+  )
+
+  const seedCount = apiData.currentRound - 1
+  for (let s = 0; s < seedCount; s++) {
+    const seedNum = s + 1
+
+    for (const uuid of field) {
+      const history = completionHistory.get(uuid)!
+      if (cutEliminated.has(uuid)) {
+        history.push(null)
+        continue
+      }
+      const bracket = apiData.brackets.find((b) => b.uuid === uuid)
+      const completion = bracket?.completions[s] ?? null
+      if (completion) {
+        points.set(uuid, (points.get(uuid) ?? 0) + completion.score)
+        history.push({ place: completion.place, score: completion.score })
+      } else {
+        history.push(null)
+      }
+    }
+
+    const currentRanks = new Map<string, number>()
+    const toRank = [...field]
+      .filter((uuid) => !cutEliminated.has(uuid))
+      .sort((a, b) => {
+        const pa = points.get(a) ?? 0
+        const pb = points.get(b) ?? 0
+        return pb !== pa ? pb - pa : a.localeCompare(b)
+      })
+
+    let rank = 1
+    for (let i = 0; i < toRank.length; i++) {
+      if (i > 0 && (points.get(toRank[i]) ?? 0) < (points.get(toRank[i - 1]) ?? 0)) rank = i + 1
+      currentRanks.set(toRank[i], rank)
+    }
+
+    const cut = ELIMINATION_SCHEDULE.find((c) => c.afterSeed === seedNum)
+    if (cut) {
+      const simPlayers = [...active].map((uuid) =>
+        toSimPlayer({ ...EMPTY_PLAYER, uuid, nickname: uuid }, points.get(uuid) ?? 0),
+      )
+      const survivors = applyElimination(simPlayers, cut)
+      const survivorSet = new Set(survivors.map((p) => p.uuid))
+      for (const uuid of active) {
+        if (!survivorSet.has(uuid)) {
+          active.delete(uuid)
+          cutEliminated.add(uuid)
+        }
+      }
+    }
+
+    for (const uuid of field) {
+      ranksHistory.get(uuid)!.push(currentRanks.get(uuid) ?? field.length)
+    }
+  }
+
+  const brackets: BracketEntry[] = field.map((uuid) => ({
+    uuid,
+    ranks: ranksHistory.get(uuid) ?? [],
+    point: points.get(uuid) ?? 0,
+    bonus: bonusMap.get(uuid) ?? 0,
+    eliminated: cutEliminated.has(uuid),
+    completions: completionHistory.get(uuid) ?? [],
+  }))
+
+  return {
+    currentRound: apiData.currentRound,
+    matches: apiData.matches,
+    brackets,
+    players: apiData.players.map((p) => ({ uuid: p.uuid, eloRate: null, country: null })),
   }
 }
 

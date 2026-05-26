@@ -2,7 +2,7 @@ import type { PlayerOdds } from './odds'
 import { EventContext, EventPlayer } from '../context/event'
 import { applyElimination, runFullHeatmapSimulation, toSimPlayer } from './simulation'
 import { BracketEntry } from '../api/types'
-import { ELIMINATION_SCHEDULE } from './config'
+import { ELIMINATION_SCHEDULE, QUALIFY_COUNT } from './config'
 
 export type PlayerView = EventPlayer &
   BracketEntry &
@@ -19,9 +19,15 @@ export function computeHistoricalData(data: EventContext, viewSeed: number): Eve
   const bracketMap = new Map(data.brackets.map((b) => [b.uuid, b]))
   const playerLookup = new Map(data.players.map((p) => [p.uuid, p]))
 
+  const qualifyCount = data.qualifyCount ?? QUALIFY_COUNT
+  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
+  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
+    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
+  )
+
   let surviving = new Set(data.brackets.map((b) => b.uuid))
 
-  for (const cut of ELIMINATION_SCHEDULE) {
+  for (const cut of effectiveSchedule) {
     if (cut.afterSeed > viewSeed) break
     const simPlayers = [...surviving].map((uuid) => {
       const p = playerLookup.get(uuid)

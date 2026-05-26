@@ -42,16 +42,16 @@ export const ROUTES = {
   MATCH_INFO: (id: number) => `${API_BASE.MCSR_PUBLIC}/matches/${id}`,
   PHASE_LEADERBOARD: (season: number, predicted?: boolean) =>
     `${API_BASE.MCSR_PUBLIC}/phase-leaderboard?season=${season}&predicted=${predicted || 'false'}`,
-  USER_SEASON_STATS: (uuid: string, season: number) =>
-    `${API_BASE.MCSR_PUBLIC}/users/${uuid}?season=${season}`,
+  USER_SEASON_STATS: (uuid: string, season?: number) =>
+    season != null
+      ? `${API_BASE.MCSR_PUBLIC}/users/${uuid}?season=${season}`
+      : `${API_BASE.MCSR_PUBLIC}/users/${uuid}`,
 } as const
 
-export async function fetchUser(uuid: string, season: number): Promise<User> {
-  const res = await fetch(ROUTES.USER_SEASON_STATS(uuid, season))
-  if (!res.ok)
-    throw new FetchError(
-      `[${ROUTES.USER_SEASON_STATS(uuid, season)}] Failed to fetch: ${res.status}`,
-    )
+export async function fetchUser(uuid: string, season?: number): Promise<User> {
+  const url = ROUTES.USER_SEASON_STATS(uuid, season)
+  const res = await fetch(url)
+  if (!res.ok) throw new FetchError(`[${url}] Failed to fetch: ${res.status}`)
   const json = (await res.json()) as any
   const data = UserSchema.parse(json.data)
   return data

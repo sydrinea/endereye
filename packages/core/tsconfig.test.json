@@ -3,7 +3,7 @@
   "compilerOptions": {
     "rootDir": ".",
     "noEmit": true,
-    "composite": false
+    "composite": true
   },
   "include": ["lib", "tests"]
 }

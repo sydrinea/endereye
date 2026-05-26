@@ -215,7 +215,6 @@ export function computeSurvivalScenarios(
     alivePlayers,
     ctx.currentRound,
     effectiveSchedule,
-    qualifyCount,
   ).scenarios
 }
 
@@ -263,7 +262,6 @@ export function computeFailureScenarios(
     alivePlayers,
     ctx.currentRound,
     effectiveSchedule,
-    qualifyCount,
     20000,
     true,
     threatMode,
