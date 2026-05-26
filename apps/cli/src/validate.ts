@@ -72,11 +72,19 @@ interface R2EventConfig {
   label: string
   kind: 'lcq' | 'mss'
   prefix: string
+  endpoint: string
 }
 
-async function resolvePrefix(arg: string | undefined): Promise<string> {
-  if (arg) return arg
+const API_BASE = 'https://api.mcsrranked.com'
+
+async function resolveConfig(arg: string | undefined): Promise<R2EventConfig> {
   const configs = await getR2Object<R2EventConfig[]>('config/events.json')
+  if (arg) {
+    const found = configs?.find((c) => c.prefix === arg)
+    if (found) return found
+    console.error(`No event found in config with prefix: ${arg}`)
+    process.exit(1)
+  }
   if (!configs || configs.length === 0) {
     console.error('No events found in config/events.json and no --prefix specified.')
     process.exit(1)
@@ -87,7 +95,7 @@ async function resolvePrefix(arg: string | undefined): Promise<string> {
     console.error(`No MSS event found. Available events:\n${prefixes}`)
     process.exit(1)
   }
-  return mss.prefix
+  return mss
 }
 
 function diffCompletions(
@@ -116,14 +124,16 @@ async function main() {
   const prefixIdx = args.indexOf('--prefix')
   const prefixArg = prefixIdx !== -1 ? args[prefixIdx + 1] : undefined
 
-  const prefix = await resolvePrefix(prefixArg)
+  const config = await resolveConfig(prefixArg)
+  const { prefix, label, endpoint } = config
 
-  console.log(`=== Bracket Validation: wc_2026 ===`)
+  console.log(`=== Bracket Validation: ${label} ===`)
   console.log(`R2 prefix: ${prefix}\n`)
 
-  const [r2Event, apiRes] = await Promise.all([
+  const [r2Event, rawOverrides, apiRes] = await Promise.all([
     getR2Object<StoredEvent>(`${prefix}.event.json`),
-    fetch('https://api.mcsrranked.com/tourneys/wc_2026').then(
+    getR2Object<Record<string, Record<string, number>>>(`${prefix}.overrides.json`),
+    fetch(`${API_BASE}/${endpoint}`).then(
       (r) => r.json() as Promise<{ status: string; data: ApiData }>,
     ),
   ])
@@ -131,6 +141,21 @@ async function main() {
   if (!r2Event) {
     console.error(`R2 object not found: ${prefix}.event.json`)
     process.exit(1)
+  }
+
+  if (rawOverrides) {
+    for (const bracket of r2Event.brackets) {
+      const overrides = rawOverrides[bracket.uuid]
+      if (!overrides) continue
+      for (const [seedIndexStr, overrideScore] of Object.entries(overrides)) {
+        const i = Number(seedIndexStr)
+        const c = bracket.completions[i]
+        if (c) bracket.completions[i] = { ...c, score: overrideScore }
+      }
+      bracket.point =
+        bracket.bonus + bracket.completions.reduce((sum, c) => sum + (c?.score ?? 0), 0)
+    }
+    console.log(`Applied overrides for ${Object.keys(rawOverrides).length} player(s)\n`)
   }
   if (apiRes.status !== 'success') {
     console.error('API returned non-success status:', apiRes.status)
@@ -152,7 +177,6 @@ async function main() {
     bad++
   }
 
-  // matches (order-insensitive)
   const r2Matches = [...r2Event.matches].sort((a, b) => a - b)
   const apiMatches = [...api.matches].sort((a, b) => a - b)
   if (JSON.stringify(r2Matches) === JSON.stringify(apiMatches)) {
@@ -167,7 +191,6 @@ async function main() {
     bad++
   }
 
-  // brackets
   const r2ByUuid = new Map(r2Event.brackets.map((b) => [b.uuid, b]))
   const apiByUuid = new Map(api.brackets.map((b) => [b.uuid, b]))
   const allUuids = new Set([...r2ByUuid.keys(), ...apiByUuid.keys()])
