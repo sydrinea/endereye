@@ -1,19 +1,35 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { computeHistoricalData, calculatePoints } from '../lib/core/context'
 import { computePlayerOdds } from '../lib/core/odds'
-import type { EventContext } from '../lib/context/event'
-import type { EventKind, BracketEntry } from '../lib/api/types'
+import type { EventContext, EventPlayer } from '../lib/context/event'
+import type { EventKind } from '../lib/api/types'
 import { dataTable, delta, pct, rocAuc } from '../lib/utils'
 import process from 'node:process'
 
-const SEASONS = [7, 8, 9, 10]
-const KINDS: EventKind[] = ['lcq', 'mss']
-const CACHE_DIR = path.join(process.cwd(), 'archive', 'events')
+try {
+  const envPath = path.join(process.cwd(), 'apps/web/.env.local')
+  const lines = fs.readFileSync(envPath, 'utf8').split('\n')
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eq = trimmed.indexOf('=')
+    if (eq === -1) continue
+    const key = trimmed.slice(0, eq).trim()
+    const val = trimmed
+      .slice(eq + 1)
+      .trim()
+      .replace(/^['"]|['"]$/g, '')
+    if (!(key in process.env)) process.env[key] = val
+  }
+} catch {
+  /* rely on env vars already in shell */
+}
+
 const ELITE_THRESHOLD = 1900
 
-// ── Accumulators ──────────────────────────────────────────────────────────────
 let totalPredictions = 0
 let brierScoreSum = 0
 let clinchViolations = 0
@@ -23,6 +39,10 @@ let totalClinchSlack = 0
 let clinchSlackMeasurements = 0
 let seed0WinBrierSum = 0
 let seed0TotalPredictions = 0
+
+const VARIANCE_BOUND = 0.025
+let maxObservedShift = 0
+let stabilityViolations = 0
 
 const stepBuckets = Array.from({ length: 10 }, () => ({ count: 0, sum: 0, actual: 0 }))
 const seedBrierData = Array.from({ length: 10 }, () => ({ sum: 0, count: 0 }))
@@ -40,55 +60,80 @@ const seed0PlayerTracker: Array<
   Array<{ name: string; season: number; kind: EventKind; prob: number; won: boolean }>
 > = Array.from({ length: 10 }, () => [])
 
-// ── Cache helpers ─────────────────────────────────────────────────────────────
-function cachePath(kind: EventKind, season: number): string {
-  return path.join(CACHE_DIR, `${kind}_s${season}.json`)
-}
+const r2 = new S3Client({
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT!,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+})
+const BUCKET = process.env.R2_BUCKET_NAME!
 
-// Migrate old archive format (rank/prevRank + top-level playerOdds) to EventContext
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function migrateArchive(raw: any): EventContext {
-  return {
-    kind: raw.kind,
-    season: raw.season,
-    players: raw.players,
-    matches: raw.matches,
-    currentRound: raw.currentRound,
-    qualifyCount: raw.qualifyCount,
-    brackets: raw.brackets.map(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (b: any): BracketEntry => ({
-        uuid: b.uuid,
-        ranks: 'ranks' in b ? (b.ranks as number[]) : [b.rank as number],
-        completions: b.completions,
-        point: b.point,
-        bonus: b.bonus,
-        eliminated: b.eliminated,
-      }),
-    ),
+async function getR2Object<T>(key: string): Promise<T | null> {
+  try {
+    const res = await r2.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }))
+    const text = await res.Body?.transformToString()
+    if (!text) return null
+    return JSON.parse(text) as T
+  } catch {
+    return null
   }
 }
 
-function loadCached(kind: EventKind, season: number): EventContext {
-  const file = cachePath(kind, season)
-  if (!fs.existsSync(file)) throw new Error(`Archive not found: ${file}`)
-  return migrateArchive(JSON.parse(fs.readFileSync(file, 'utf-8')))
+interface R2EventConfig {
+  slug: string
+  kind: EventKind
+  season: number
+  prefix: string
+  published?: boolean
 }
 
-// ── Load all events ──────────────────────────────────────────────────────
-const loadEvents = () => {
-  const events: { kind: EventKind; season: number; data: EventContext }[] = []
-  for (const kind of KINDS) {
-    for (const season of SEASONS) {
-      events.push({ kind, season, data: loadCached(kind, season) })
-    }
-  }
-  return events
+interface StoredEvent {
+  currentRound: number
+  matches: number[]
+  brackets: EventContext['brackets']
+  qualifyCount?: number
 }
 
-// ── Suite ─────────────────────────────────────────────────────────────────────
+async function loadEvents(): Promise<{ kind: EventKind; season: number; data: EventContext }[]> {
+  const configs = await getR2Object<R2EventConfig[]>('config/events.json')
+  if (!configs) throw new Error('Could not load config/events.json from R2')
+
+  const published = configs.filter(
+    (c) => c.published !== false && (c.kind === 'lcq' || c.kind === 'mss'),
+  )
+
+  const results = await Promise.all(
+    published.map(async (config) => {
+      const [eventData, players] = await Promise.all([
+        getR2Object<StoredEvent>(`${config.prefix}.event.json`),
+        getR2Object<EventPlayer[]>(`${config.prefix}.players.json`),
+      ])
+      if (!eventData || !players) {
+        console.warn(`Skipping ${config.prefix}: missing R2 data`)
+        return null
+      }
+      const data: EventContext = {
+        kind: config.kind,
+        season: config.season,
+        players,
+        brackets: eventData.brackets,
+        matches: eventData.matches,
+        currentRound: eventData.currentRound,
+        qualifyCount: eventData.qualifyCount,
+      }
+      return { kind: config.kind, season: config.season, data }
+    }),
+  )
+
+  return results
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+    .sort((a, b) => a.season - b.season || a.kind.localeCompare(b.kind))
+}
+
 describe('LCQ/MSS Backtest', async () => {
-  for (const { kind, season, data } of loadEvents()) {
+  for (const { kind, season, data } of await loadEvents()) {
     describe(`${kind.toUpperCase()} S${season}`, () => {
       const finalState = computeHistoricalData(data, 10)
       const finalTruthMap = new Map(finalState.brackets.map((b) => [b.uuid, b]))
@@ -97,6 +142,22 @@ describe('LCQ/MSS Backtest', async () => {
         it(`Seed ${s} → ${s + 1}`, () => {
           const state = computeHistoricalData(data, s)
           const odds = computePlayerOdds(state)
+
+          const oddsB = computePlayerOdds(state)
+          for (const [uuid, p] of Object.entries(odds)) {
+            if (oddsB[uuid]) {
+              const shift = Math.abs(p.survivalProbability - oddsB[uuid].survivalProbability)
+              if (shift > maxObservedShift) maxObservedShift = shift
+
+              if (shift > VARIANCE_BOUND) {
+                stabilityViolations++
+                console.warn(
+                  `[MC Stability] ${uuid} shifted by ${(shift * 100).toFixed(2)}% (limit: ${(VARIANCE_BOUND * 100).toFixed(2)}%)`,
+                )
+              }
+            }
+          }
+
           const nextCutSeed = [3, 5, 7, 8, 9, 10].find((c) => c > s) ?? 10
           const truthAtCut = computeHistoricalData(data, nextCutSeed)
           const truthMap = new Map(truthAtCut.brackets.map((b) => [b.uuid, b]))
@@ -178,7 +239,7 @@ describe('LCQ/MSS Backtest', async () => {
             seedBrierData[s].sum += (p.survivalProbability - actualSurvival) ** 2
             seedBrierData[s].count++
           }
-        })
+        }, 0)
       }
     })
   }
@@ -201,6 +262,16 @@ describe('LCQ/MSS Backtest', async () => {
               'Avg Clinch Slack',
               `${clinchSlackMeasurements > 0 ? (totalClinchSlack / clinchSlackMeasurements).toFixed(2) : 0} pts`,
               '',
+            ],
+            [
+              'Max MC Shift',
+              `${(maxObservedShift * 100).toFixed(2)}%`,
+              maxObservedShift <= VARIANCE_BOUND ? 'PASSED' : 'WARN',
+            ],
+            [
+              'MC Stability Vio.',
+              stabilityViolations,
+              stabilityViolations === 0 ? 'PASSED' : 'FAILED',
             ],
           ],
         ),
@@ -270,13 +341,15 @@ describe('LCQ/MSS Backtest', async () => {
     console.log(`Overall Survival Brier: ${(brierScoreSum / totalPredictions).toFixed(4)}`)
 
     // ── Per-season expert analysis ──
-    for (const s of SEASONS) {
+    const seasons = [...new Set(seed0RocPairs.map((p) => p.season))].sort((a, b) => a - b)
+    const kinds = [...new Set(seed0RocPairs.map((p) => p.event.toLowerCase() as EventKind))]
+    for (const s of seasons) {
       const seasonPairs = seed0RocPairs.filter((p) => p.season === s)
       console.log(
         '\n' +
           dataTable(
             ['Event', 'Custom AUC', 'Baseline AUC', 'Lift', 'Sample'],
-            KINDS.map((kind) => {
+            kinds.map((kind) => {
               const pairs = seasonPairs.filter((p) => p.event === kind.toUpperCase())
               const elite = pairs.filter((p) => p.elo > ELITE_THRESHOLD)
               const w = elite.filter((p) => p.actual === 1).length
@@ -295,5 +368,9 @@ describe('LCQ/MSS Backtest', async () => {
     expect(customAuc, 'AUC must exceed 0.88').toBeGreaterThan(0.88)
     expect(clinchViolations, 'No clinch violations').toBe(0)
     expect(safeViolations, 'No safe violations').toBe(0)
+    expect(
+      stabilityViolations,
+      `MC shift exceeded 3-sigma (${(VARIANCE_BOUND * 100).toFixed(2)}%)`,
+    ).toBe(0)
   })
 })
