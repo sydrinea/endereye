@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import Ranked from '@/components/icons/Ranked'
+import { AnnouncementBanner } from '@/components/layout'
 import { Countdown } from './Countdown'
 import { EventCard } from './EventCard'
 import type { EventConfig } from '../../lib/events-config'
@@ -27,6 +28,7 @@ export function HeroSection({
 
   return (
     <main className="min-h-[calc(100vh-4rem)] flex flex-col">
+      <AnnouncementBanner label="New: Methodology & Accuracy" href="/method" />
       <section className="flex-1 flex flex-col items-center justify-center gap-8 px-6 text-center">
         <Ranked size={128} />
         {event ? (

@@ -13,79 +13,17 @@ import {
 } from '@endereye/core'
 import type { PlayerView, EventContext, SurvivalScenario, ScenarioRecords } from '@endereye/core'
 import { DashboardHeader, Banner, Surface } from '@/components/layout'
-import { Table, PlayerFilter } from '@/components/ui'
+import { Table, PlayerFilter, Tabs } from '@/components/ui'
 import { StandingsRow } from './StandingsRow'
 import { EliminatedSection } from './EliminatedSection'
 import { SurvivalScenariosModal } from './SurvivalScenariosModal'
-import type { StandingsRowData, OverrideEntry } from './StandingsRow'
-import type { Status } from '@/components/ui'
+import { AnalyticsPanel } from './AnalyticsPanel'
+import { PlayersPanel } from './PlayersPanel'
+import { mssPhasePoints, computeCutKeep, toRowData } from '@/lib/dashboard-utils'
 
 const CUT_SEEDS = [3, 5, 7, 8, 9, 10]
 const COLS = '4rem 1fr 8rem 14rem 10rem'
 const ALL_SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-
-function mapStatus(view: PlayerView): Status {
-  if (view.status === 'qualified') return 'qualified'
-  if (view.status === 'eliminated') return 'out'
-  if (view.status === 'safe') return 'safe'
-  const p = view.survivalProbability
-  if (p >= 0.75) return 'near-safe'
-  if (p >= 0.45) return 'coin-flip'
-  if (p >= 0.15) return 'at-risk'
-  return 'must-clutch'
-}
-
-function mapPill(view: PlayerView): StandingsRowData['pill'] {
-  if (view.status === 'qualified' || view.status === 'eliminated') return undefined
-  if (view.clinchPlace !== null && view.clinchPlace !== 'DNF') {
-    return { type: 'needs', rank: view.clinchPlace as number }
-  }
-  if (view.cutDelta < 0) {
-    return { type: 'to-cut', deficit: Math.abs(view.cutDelta) }
-  }
-  return undefined
-}
-
-function mssPhasePoints(rank: number): number {
-  if (rank <= 4) return 25
-  if (rank <= 6) return 20
-  if (rank <= 8) return 15
-  if (rank <= 10) return 10
-  return 0
-}
-
-function toRowData(
-  view: PlayerView,
-  overrideMap?: EventContext['overrides'],
-  qualifiedLabel?: string,
-): StandingsRowData {
-  const delta =
-    view.prevRank != null && view.prevRank !== view.rank ? view.prevRank - view.rank : null
-  const status = mapStatus(view)
-  const pct = view.survivalProbability
-
-  const playerOverrides = overrideMap?.[view.uuid]
-  const overrides: OverrideEntry[] | undefined = playerOverrides
-    ? Object.entries(playerOverrides).map(([seedIndex, info]) => ({
-        seed: Number(seedIndex) + 1,
-        original: info.original,
-        override: info.override,
-      }))
-    : undefined
-
-  return {
-    rank: view.rank,
-    delta,
-    nickname: view.nickname,
-    pts: view.point,
-    bonus: view.bonus,
-    status,
-    survivalPct: Math.round(pct * 100),
-    pill: mapPill(view),
-    overrides,
-    qualifiedLabel,
-  }
-}
 
 function computeViews(eventData: EventContext, seed: number): PlayerView[] {
   const ctx = computeHistoricalData(eventData, seed)
@@ -106,6 +44,7 @@ export function DashboardClient({
   live?: boolean
   backHref?: string
 }) {
+  const [activeTab, setActiveTab] = useState<'standings' | 'analytics' | 'players'>('standings')
   const filterKey = `endereye:filter:${eventLabel}`
   const [filteredNicknames, setFilteredNicknames] = useState<string[]>(() => {
     if (typeof window === 'undefined') return []
@@ -229,18 +168,7 @@ export function DashboardClient({
 
   const nextCut = CUT_SEEDS.find((s) => s > seed)
   const qualifyCount = eventData.qualifyCount ?? 4
-  const cutKeep =
-    nextCut === 5
-      ? Math.ceil(rows.length / 2)
-      : nextCut === 7
-        ? 10
-        : nextCut === 8
-          ? 8
-          : nextCut === 9
-            ? 6
-            : nextCut === 10
-              ? qualifyCount
-              : undefined
+  const cutKeep = computeCutKeep(seed, rows.length, qualifyCount)
 
   const allAboveCut =
     nextCut === 3 ? rows.filter((r) => r.pts > 0) : cutKeep != null ? rows.slice(0, cutKeep) : rows
@@ -297,13 +225,14 @@ export function DashboardClient({
       />
       <Surface width="xl">
         <div className="flex flex-col gap-2">
-          <Banner
-            label="Disclaimer"
-            detail="Survival odds only reflect the next elimination round. A 'Safe' status right now does not guarantee safety for the entire event"
-          />
-          <Banner
-            label="Shifting %'s"
-            detail="Percentages may fluctuate slightly on refresh and when reopening Threat/Survival Paths. The site runs thousands of simulations to assign odds, so variations are completely normal."
+          <Tabs
+            tabs={[
+              { label: 'Standings', value: 'standings' },
+              { label: 'Analytics', value: 'analytics' },
+              { label: 'Players', value: 'players' },
+            ]}
+            value={activeTab}
+            onChange={(v) => setActiveTab(v as 'standings' | 'analytics' | 'players')}
           />
           <PlayerFilter
             players={allNicknames}
@@ -312,21 +241,28 @@ export function DashboardClient({
             onRemove={removeFilter}
           />
           <div className="border-b border-zinc-800" />
-          <Table cols={COLS}>
-            {aboveCut.map((row) => (
-              <StandingsRow
-                key={row.nickname}
-                row={row}
-                onSelectScenarios={scenarioCallback(row.nickname)}
-              />
-            ))}
-          </Table>
 
-          {belowCut.length > 0 && (
+          {activeTab === 'standings' && (
             <>
-              <Banner label="Next Elimination" detail={cutLabel} variant="danger" />
+              <Banner
+                label="Disclaimer"
+                detail="Survival odds only reflect the next elimination round. A 'Safe' status right now does not guarantee safety for the entire event"
+              />
+              <Banner
+                label="Simulation Variance"
+                detail={
+                  <>
+                    Percentages may fluctuate by up to 1.5% on refresh because of simulation
+                    variance.{' '}
+                    <Link href="/method" className="underline">
+                      Read the methodology
+                    </Link>
+                    .
+                  </>
+                }
+              />
               <Table cols={COLS}>
-                {belowCut.map((row) => (
+                {aboveCut.map((row) => (
                   <StandingsRow
                     key={row.nickname}
                     row={row}
@@ -334,10 +270,37 @@ export function DashboardClient({
                   />
                 ))}
               </Table>
+
+              {belowCut.length > 0 && (
+                <>
+                  <Banner label="Next Elimination" detail={cutLabel} variant="danger" />
+                  <Table cols={COLS}>
+                    {belowCut.map((row) => (
+                      <StandingsRow
+                        key={row.nickname}
+                        row={row}
+                        onSelectScenarios={scenarioCallback(row.nickname)}
+                      />
+                    ))}
+                  </Table>
+                </>
+              )}
+
+              {visibleEliminated.length > 0 && <EliminatedSection rows={visibleEliminated} />}
             </>
           )}
 
-          {visibleEliminated.length > 0 && <EliminatedSection rows={visibleEliminated} />}
+          {activeTab === 'analytics' && (
+            <AnalyticsPanel
+              eventData={eventData}
+              filteredNicknames={filteredNicknames}
+              viewSeed={seed}
+            />
+          )}
+
+          {activeTab === 'players' && (
+            <PlayersPanel players={eventData.players} filteredNicknames={filteredNicknames} />
+          )}
         </div>
       </Surface>
 

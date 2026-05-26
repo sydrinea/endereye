@@ -1,6 +1,6 @@
 import Image from 'next/image'
 
-const sizes = { sm: 24, md: 32 }
+const sizes = { sm: 24, md: 32, lg: 48 }
 
 interface Props {
   nickname: string

@@ -285,39 +285,41 @@ export function DashboardContent({ events, initialConfigJson }: Props) {
             ) : (
               <div className="flex flex-col gap-2">
                 <Label>Current events ({parsedEvents.length})</Label>
-                {parsedEvents.map((ev) => (
-                  <DashboardCard
-                    key={ev.slug}
-                    left={
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-medium text-zinc-100">{ev.label}</span>
-                        <span className="text-xs text-zinc-500">
-                          {ev.slug} · season {ev.season} · starts{' '}
-                          {new Date(ev.startDate).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            timeZone: 'UTC',
-                            timeZoneName: 'short',
-                          })}
-                        </span>
-                      </div>
-                    }
-                    right={
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteEvent(ev.slug, ev.label)}
-                        disabled={isPending}
-                        className="flex items-center justify-center rounded-lg px-2 py-2 text-must-clutch hover:bg-must-clutch/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                        title="Delete event"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    }
-                  />
-                ))}
+                {parsedEvents
+                  .sort((a, b) => (new Date(a.startDate) < new Date(b.startDate) ? 1 : -1))
+                  .map((ev) => (
+                    <DashboardCard
+                      key={ev.slug}
+                      left={
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm font-medium text-zinc-100">{ev.label}</span>
+                          <span className="text-xs text-zinc-500">
+                            {ev.slug} · season {ev.season} · starts{' '}
+                            {new Date(ev.startDate).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              timeZone: 'UTC',
+                              timeZoneName: 'short',
+                            })}
+                          </span>
+                        </div>
+                      }
+                      right={
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteEvent(ev.slug, ev.label)}
+                          disabled={isPending}
+                          className="flex items-center justify-center rounded-lg px-2 py-2 text-must-clutch hover:bg-must-clutch/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                          title="Delete event"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      }
+                    />
+                  ))}
               </div>
             )}
           </div>

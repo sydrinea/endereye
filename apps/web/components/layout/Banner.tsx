@@ -1,8 +1,9 @@
 import { Info } from 'lucide-react'
+import { ReactNode } from 'react'
 
 interface Props {
-  label: string
-  detail?: string
+  label: ReactNode
+  detail?: ReactNode
   variant?: 'info' | 'danger'
   showDot?: boolean
 }

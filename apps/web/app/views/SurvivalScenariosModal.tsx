@@ -17,6 +17,15 @@ function survivalColor(p: number): string {
   return 'text-must-clutch'
 }
 
+function scenarioColor(normalizedFreq: number, threatMode: boolean): string {
+  const v = threatMode ? normalizedFreq : 1 - normalizedFreq
+  if (v < 0.2) return 'text-safe'
+  if (v < 0.4) return 'text-near-safe'
+  if (v < 0.6) return 'text-coin-flip'
+  if (v < 0.8) return 'text-at-risk'
+  return 'text-must-clutch'
+}
+
 function isThreatMode(view: PlayerView): boolean {
   return view.status === 'safe' || view.status === 'qualified' || view.survivalProbability >= 0.75
 }
@@ -24,41 +33,15 @@ function isThreatMode(view: PlayerView): boolean {
 function ScenarioRow({
   scenario,
   nicknameOf,
-  naturalProbability,
   threatMode,
+  normalizedFreq,
 }: {
   scenario: SurvivalScenario
   nicknameOf: (uuid: string) => string
-  naturalProbability: number
   threatMode: boolean
+  normalizedFreq: number
 }) {
-  const isDirectThreat = scenario.constraints.some((c) => c.maxPlace !== undefined)
-  let pct: number
-  let freqPct: number
-
-  if (threatMode && !isDirectThreat) {
-    // Old-style DNF scenarios: constraints use minPlace (opponent places badly),
-    // so we display the complement (when they place well instead)
-    const complementFreq = 1 - scenario.frequency
-    const complementP =
-      scenario.complementSurvivalProbability !== undefined
-        ? scenario.complementSurvivalProbability
-        : complementFreq > 0.01
-          ? Math.max(
-              0,
-              Math.min(
-                1,
-                (naturalProbability - scenario.survivalProbability * scenario.frequency) /
-                  complementFreq,
-              ),
-            )
-          : 0
-    pct = Math.round(complementP * 100)
-    freqPct = Math.round(complementFreq * 100)
-  } else {
-    pct = Math.round(scenario.survivalProbability * 100)
-    freqPct = Math.round(scenario.frequency * 100)
-  }
+  const freqPct = Math.round(scenario.frequency * 100)
 
   return (
     <div className="flex items-start justify-between gap-4 py-3 border-b border-zinc-800 last:border-0">
@@ -72,11 +55,6 @@ function ScenarioRow({
                 {' finishes '}
                 <span className="text-zinc-400">{ordinal(c.maxPlace)} or better</span>
               </>
-            ) : threatMode ? (
-              <>
-                {' finishes '}
-                <span className="text-zinc-400">{ordinal(c.minPlace - 1)} or better</span>
-              </>
             ) : (
               <>
                 {' finishes '}
@@ -86,20 +64,47 @@ function ScenarioRow({
           </span>
         ))}
       </div>
-      <div className="flex flex-col items-end shrink-0 gap-0.5">
-        <span className={`font-mono tabular-nums font-semibold ${survivalColor(pct / 100)}`}>
-          {pct}%
+      <div className="shrink-0">
+        <span
+          className={`font-mono tabular-nums font-semibold ${scenarioColor(normalizedFreq, threatMode)}`}
+        >
+          {freqPct}%
         </span>
-        <span className="text-xs text-zinc-500">{freqPct}% of seeds</span>
       </div>
     </div>
   )
 }
 
-function SectionHeader({ label }: { label: string }) {
+function SectionHeader({
+  nickname,
+  condition,
+  survivalProbability,
+}: {
+  nickname: string
+  condition: string
+  survivalProbability?: number
+}) {
   return (
-    <div className="px-5 py-2 border-t border-b border-zinc-800 bg-zinc-950/40">
-      <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{label}</span>
+    <div className="mx-5 mt-5 mb-3 px-4 py-2.5 flex items-baseline justify-between rounded-lg bg-zinc-800/60 border border-zinc-700/50 shadow-md">
+      <span className="text-sm font-medium text-zinc-300">
+        If <span className="font-semibold text-zinc-100">{nickname}</span> {condition}
+      </span>
+      {survivalProbability !== undefined && (
+        <span
+          className={`text-xs font-mono tabular-nums font-medium ${survivalColor(survivalProbability)}`}
+        >
+          {Math.round(survivalProbability * 100)}% survival
+        </span>
+      )}
+    </div>
+  )
+}
+
+function TableHeader() {
+  return (
+    <div className="px-5 flex justify-between items-center border-b border-zinc-800 pb-1.5">
+      <span className="text-xs text-zinc-600">Scenario</span>
+      <span className="text-xs text-zinc-600">% of outcomes</span>
     </div>
   )
 }
@@ -160,9 +165,10 @@ export function SurvivalScenariosModal({
     failureScenarios: snapFailure,
     dnfSurvivalProbability: snapDnfP,
   } = snap
-  const naturalPct = Math.round(view.survivalProbability * 100)
   const showFailure = snapFailure.length > 0
   const threatView = isThreatMode(view)
+  const maxCompletionFreq = Math.max(...snapScenarios.map((s) => s.frequency), 0.001)
+  const maxFailureFreq = Math.max(...snapFailure.map((s) => s.frequency), 0.001)
 
   return (
     <div
@@ -201,25 +207,23 @@ export function SurvivalScenariosModal({
 
           {/* Bottom Row: The Info Blurb */}
           <p className="mt-3 text-xs text-zinc-500 leading-relaxed pr-2">
-            These odds estimate how completing vs. DNFing changes a player&apos;s survival chances.
-            The scenarios below show specific opponent finishes that alter those odds, ordered from
-            highest to lowest impact.
+            Opponent placement patterns most frequently appearing in{' '}
+            {threatView ? 'elimination' : 'survival'} outcomes across 20k simulated seeds, ordered
+            by frequency.
           </p>
         </div>
 
-        {/* Natural odds */}
-        <div className="px-5 pt-4 pb-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-zinc-400">Natural survival odds</span>
-            <span className={`font-mono tabular-nums ${survivalColor(view.survivalProbability)}`}>
-              {naturalPct}%
-            </span>
-          </div>
-        </div>
-
         <div className="max-h-112 overflow-y-auto">
-          {showFailure && <SectionHeader label={`If ${view.nickname} completes`} />}
-          <div className="px-5 py-1">
+          {showFailure && (
+            <SectionHeader
+              nickname={view.nickname}
+              condition="completes"
+              survivalProbability={view.survivalProbability}
+            />
+          )}
+          {!showFailure && <div className="pt-4" />}
+          <TableHeader />
+          <div className="px-5">
             {snapScenarios.length === 0 ? (
               <p className="text-sm text-zinc-500 text-center py-6">
                 {threatView ? 'No significant threats found.' : 'No viable survival paths found.'}
@@ -230,8 +234,8 @@ export function SurvivalScenariosModal({
                   key={i}
                   scenario={s}
                   nicknameOf={nicknameOf}
-                  naturalProbability={view.survivalProbability}
                   threatMode={threatView}
+                  normalizedFreq={s.frequency / maxCompletionFreq}
                 />
               ))
             )}
@@ -239,15 +243,20 @@ export function SurvivalScenariosModal({
 
           {showFailure && (
             <>
-              <SectionHeader label={`If ${view.nickname} DNF`} />
-              <div className="px-5 py-1">
+              <SectionHeader
+                nickname={view.nickname}
+                condition="DNF"
+                survivalProbability={snapDnfP}
+              />
+              <TableHeader />
+              <div className="px-5">
                 {snapFailure.map((s, i) => (
                   <ScenarioRow
                     key={i}
                     scenario={s}
                     nicknameOf={nicknameOf}
-                    naturalProbability={snapDnfP}
                     threatMode={threatView}
+                    normalizedFreq={s.frequency / maxFailureFreq}
                   />
                 ))}
               </div>
@@ -257,9 +266,8 @@ export function SurvivalScenariosModal({
 
         <div className="px-5 py-3 border-t border-zinc-800">
           <p className="text-xs text-zinc-600">
-            {threatView
-              ? 'Based on 20k simulated seeds · shows odds when opponents beat the shown placement'
-              : 'Based on 20k simulated seeds · opponents must finish at or below shown placement'}
+            Based on 20k simulated seeds · % of {threatView ? 'elimination' : 'survival'} outcomes
+            where each pattern occurred
           </p>
         </div>
       </div>

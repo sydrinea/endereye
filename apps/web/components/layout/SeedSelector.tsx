@@ -13,7 +13,13 @@ export function SeedSelector({ seeds, currentSeed }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
-  const options = [{ value: '0', label: 'Initial Rankings' }, ...seeds.map((s) => ({ value: String(s), label: `After Seed ${s}` }))]
+  const options = [
+    ...seeds
+      .sort((a, b) => a - b)
+      .reverse()
+      .map((s) => ({ value: String(s), label: `After Seed ${s}` })),
+    { value: '0', label: 'Initial Rankings' },
+  ]
   const latestSeed = seeds[seeds.length - 1]
 
   return (
@@ -23,7 +29,7 @@ export function SeedSelector({ seeds, currentSeed }: Props) {
         value={String(currentSeed)}
         onChange={(v) =>
           startTransition(() =>
-            Number(v) === latestSeed ? router.push(pathname) : router.push(`?seed=${v}`)
+            Number(v) === latestSeed ? router.push(pathname) : router.push(`?seed=${v}`),
           )
         }
       />

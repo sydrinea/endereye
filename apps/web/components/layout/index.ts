@@ -1,4 +1,5 @@
 export { Surface } from './Surface'
 export { DashboardHeader } from './DashboardHeader'
 export { Banner } from './Banner'
+export { AnnouncementBanner } from './AnnouncementBanner'
 export { Footer } from './Footer'
