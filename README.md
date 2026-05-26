@@ -15,35 +15,33 @@ A live survival odds calculator for MCSR Ranked LCQ and MSS events
 
 Visit [https://lcqtracker.vercel.app](https://lcqtracker.vercel.app), where it updates in real time for the currently active event!
 
-## Monte Carlo
+## How it works
 
-Each event state is simulated 10,000 times. For each simulation, players are ranked per seed based on a power score derived from their Elo, win rate, best time, and average completion time. Players with a large gap between their best and average time are more likely to DNF in any given seed. Eliminations are applied at the scheduled cut points, and the top 4 finishers qualify.
+Each time a seed completes, the model runs 20,000 simulated playthroughs of the remaining seeds. In each simulation, player performance is sampled from a model built on Elo rating and season ladder completion stats (average time, best time). The fraction of simulations in which a player survives the next elimination becomes their displayed survival probability.
 
-## Power Scoring
+Survival and threat paths are derived from the same simulation batch. After all simulations run, the model identifies which opponent placement patterns most reliably separate "survived" from "eliminated" outcomes for each player, and surfaces the most frequent ones.
 
-The model scores each player's expected performance per seed using:
+In a 60+ player lobby, simulating exact permutations becomes computationally impossible. The **Safe** and **Needs #** labels bypass player variance by using point calculations to surface guaranteed survival thresholds:
 
-- **Elo** — a compressed version of their season rating, weighted lightly to avoid over-relying on ladder performance
-- **Win rate** — scaled by number of matches played, so low-volume players don't get outsized credit
-- **Best time** — how fast they can go on a good run, relative to the field
-- **Average time** — how consistently they finish, weighted more heavily in the first half of the event
-
-## Deterministic Guarantees
-
-Beyond probabilities, the model provides exact answers where possible:
-
-- **Clinch score**: the minimum placement a player needs this seed to guarantee survival at the next cut, under worst-case assumptions for all other players
-- **Safe**: whether a player is mathematically guaranteed to survive the next cut regardless of this seed's result
-- **Can still win**: whether a top-4 finish is still mathematically possible
-
-These are computed deterministically, not from simulation, so they carry no sampling error.
+- **Safe** — whether a player is mathematically guaranteed to survive the next cut regardless of this seed's result
+- **Clinch Place** — the minimum placement a player needs this seed to guarantee survival at the next cut, under worst-case assumptions for all other players
 
 ## Calibration
 
-The model has been backtested across Seasons 7–10 for both LCQ and MSS:
+| Metric                   | Value  |
+| ------------------------ | ------ |
+| Survival Brier score     | 0.0552 |
+| Safe violations          | 0      |
+| Clinch violations        | 0      |
+| Variation per simulation | ±0.3%  |
 
-- **AUC 0.886** vs. baseline 0.762 — statistically significant lift over raw Elo (p < 0.001, bootstrap 1000 iterations)
-- **0 clinch violations** — no clinch guarantee was incorrect
-- **0 safe violations** — no player flagged as safe was subsequently eliminated
+A well-calibrated model should be right as often as it says it will be: when it assigns 70% survival odds, the player should survive roughly 70% of the time. The model is slightly overconfident in the 10–80% range (actual rates run ~3–8% below predicted). At the extremes it is well-calibrated — near-certain survivors and near-certain eliminations are predicted accurately.
 
-Calibration is slightly overconfident in the 10–80% survival range (actual rates run ~3–6% below predicted), likely due to underestimating DNF variance in the competitive field.
+No safe or clinch guarantee has ever been incorrect.
+
+## Limitations
+
+- The model does not account for player momentum, fatigue, or meta-game dynamics within an event.
+- Elo and completion time metrics are based on the season ladder. A player having an unusually good or bad day is not reflected.
+- Scenario path validation is based on a small number of historical events. Sample sizes will grow as more seasons are archived.
+- DNF probability is estimated from historical completion rates and does not account for known circumstances like technical issues or scheduling conflicts.
