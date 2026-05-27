@@ -134,7 +134,7 @@ export function DnfImpactChart({ data, seedKeys, seedColors, seedLabels }: Props
           ))}
         </BarChart>
       </ResponsiveContainer>
-      <p className="text-xs text-zinc-600">
+      <p className="text-xs text-zinc-500">
         Survival probability lost when a player DNF&apos;d each seed. Stacked bars show cumulative
         impact across multiple DNFs.
       </p>

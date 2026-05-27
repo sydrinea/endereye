@@ -39,7 +39,7 @@ const BASE_URL = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
-  title: 'endereye | LCQ/MSS Tracker',
+  title: 'endereye | LCQ and MSS events tracker',
   description: 'Survival analytics for MCSR Ranked LCQ and MSS events.',
   openGraph: {
     type: 'website',

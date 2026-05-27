@@ -208,9 +208,11 @@ export function ClinchSlackTrajectoryChart({
           ))}
         </ComposedChart>
       </ResponsiveContainer>
-      <p className="text-xs text-zinc-500 text-center">
-        How each player&apos;s margin of error evolved across the cuts. Lines stop when a player is
-        eliminated.
+      <p className="text-xs text-zinc-500">
+        {entityLabel === 'players'
+          ? `How each player's margin of error evolved across the cuts. Lines stop when a player is
+        eliminated.`
+          : `How this player's margin of error evolved across the cuts. Lines stop when the player is eliminated.`}
       </p>
     </div>
   )

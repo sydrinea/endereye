@@ -10,7 +10,6 @@ import type { CareerEventSlice } from '../lib/career-data'
 import { computeFinalistsData } from '../lib/finals-stats'
 import type { EventConfig } from '../lib/events-config'
 
-
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PUBLIC_DATA = join(__dirname, '..', 'public', 'data')
 
@@ -33,7 +32,7 @@ function buildSlice(
     let clinchSlack: number | null = null
     if (CUT_SEEDS.includes(snap.seed)) {
       const prev = snaps[i - 1]
-      if (prev) {
+      if (prev && !prev.bracket?.eliminated) {
         const clinch = prev.clinchScore ?? MAX_SCORE_PER_SEED
         const actual = snap.bracket?.completions[snap.seed - 1]?.score ?? 0
         clinchSlack = actual - clinch
@@ -99,7 +98,9 @@ async function main() {
 
   for (let ei = 0; ei < completed.length; ei++) {
     const config = completed[ei]
-    process.stdout.write(`[${ei + 1}/${completed.length}] ${config.label} (prefix: ${config.prefix}) `)
+    process.stdout.write(
+      `[${ei + 1}/${completed.length}] ${config.label} (prefix: ${config.prefix}) `,
+    )
 
     const ctx = await getEventContext(
       config.kind,
@@ -114,7 +115,9 @@ async function main() {
 
     loadedEvents.push({ config, context: ctx })
     const totalSeeds = ctx.currentRound - 1
-    console.log(`round=${ctx.currentRound} players=${ctx.players.length} seeds to compute=${totalSeeds}`)
+    console.log(
+      `round=${ctx.currentRound} players=${ctx.players.length} seeds to compute=${totalSeeds}`,
+    )
 
     // Init snap accumulators for every player in this event
     const eventSnaps = new Map<string, SnapData[]>()

@@ -132,7 +132,7 @@ function StandingsInner() {
     <>
       <Banner
         label="Disclaimer"
-        detail="Survival odds only reflect the next elimination round. A 'Safe' status right now does not guarantee safety for the entire event"
+        detail="Survival odds only reflect the next elimination round. A 'Safe' status right now does not guarantee safety for the entire event."
       />
       <Banner
         label="Simulation Variance"
@@ -148,7 +148,11 @@ function StandingsInner() {
       />
       <Table cols={COLS}>
         {aboveCut.map((row) => (
-          <StandingsRow key={row.nickname} row={row} onSelectScenarios={scenarioCallback(row.nickname)} />
+          <StandingsRow
+            key={row.nickname}
+            row={row}
+            onSelectScenarios={scenarioCallback(row.nickname)}
+          />
         ))}
       </Table>
 
@@ -157,7 +161,11 @@ function StandingsInner() {
           <Banner label="Next Elimination" detail={cutLabel} variant="danger" />
           <Table cols={COLS}>
             {belowCut.map((row) => (
-              <StandingsRow key={row.nickname} row={row} onSelectScenarios={scenarioCallback(row.nickname)} />
+              <StandingsRow
+                key={row.nickname}
+                row={row}
+                onSelectScenarios={scenarioCallback(row.nickname)}
+              />
             ))}
           </Table>
         </>
@@ -179,7 +187,13 @@ function StandingsInner() {
 
 export function StandingsTabPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center py-8"><Spinner /></div>}>
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-8">
+          <Spinner />
+        </div>
+      }
+    >
       <StandingsInner />
     </Suspense>
   )

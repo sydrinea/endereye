@@ -157,25 +157,25 @@ export function FinalistsPanel({ data }: { data: FinalistsChartData }) {
 
       <Section
         title="Survival Odds Trajectory"
-        description="How each finalist's probability of surviving to the next cut evolved across the event. Lines represent individual finalist runs; bands show the distribution when many series are visible."
+        description="How each finalist's probability of surviving the next cut evolved across the event. Lines represent individual finalist runs; bands show the distribution when many series are visible."
       >
         <SurvivalOddsChart
           data={filteredSurvival}
           players={players}
           cutSeeds={cutSeeds}
-          entityLabel="finalists"
+          entityLabel="players"
           overlays={[{ key: DEEP_RUNS_KEY, color: '#71717a' }]}
         />
       </Section>
 
       <Section
         title="Clinch Slack Trajectory"
-        description="Points scored above (+) or below (−) what the model said you needed to guarantee your spot at each cut. Positive means you had a buffer; negative means you didn't clinch outright."
+        description="Margin above or below the score needed to clinch survival at each cut, across all seasons. Above zero means they had breathing room; below means they were relying on others."
       >
         <ClinchSlackTrajectoryChart
           data={filteredSlack}
           players={players}
-          entityLabel="finalists"
+          entityLabel="players"
           overlays={[{ key: DEEP_RUNS_KEY, color: '#71717a' }]}
         />
       </Section>

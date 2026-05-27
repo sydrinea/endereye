@@ -83,6 +83,7 @@ export function AnalyticsPanel({
   }, [eventData])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setProgress(null)
     const worker = new Worker(new URL('./analytics.worker.ts', import.meta.url))
     worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
@@ -188,7 +189,7 @@ export function AnalyticsPanel({
 
       <Section
         title="Clinch Slack"
-        description="Points scored above (+) or below (−) the score the model said you needed to guarantee your spot at each cut, looked at retrospectively. Positive means you had a buffer; negative means you didn't clinch but may have survived."
+        description="Points scored above (+) or below (−) the score the model said you needed to guarantee survival at each cut, looked at retrospectively. Positive means you had a buffer; negative means you fell short of the clinch threshold but may have survived anyway."
       >
         <ClinchSlackChart
           data={slackData}
@@ -199,7 +200,7 @@ export function AnalyticsPanel({
 
       <Section
         title="Slack Trajectory"
-        description="Tracks margin of error over time. Players consistently above the zero line are dominating, while players below are mathematically relying on others to fail."
+        description="Tracks margin of error over time. Players consistently above the line clinched their survival at each cut; players below needed others to underperform."
       >
         <ClinchSlackTrajectoryChart data={slackTrajectoryData} players={slackPlayers} />
       </Section>

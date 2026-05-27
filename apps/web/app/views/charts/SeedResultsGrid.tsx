@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { PlayerAvatar } from '@/components/ui'
 
 export interface SeedResultCell {
@@ -61,11 +62,27 @@ function placeLabel(cell: SeedResultCell): string {
   return ordinal(cell.place)
 }
 
+const TOOLTIP_W = 180
+const TOOLTIP_H = 96
+const TOOLTIP_PAD = 8
+
+function tooltipPos(rect: DOMRect) {
+  const left = Math.max(
+    TOOLTIP_PAD,
+    Math.min(rect.left + rect.width / 2 - TOOLTIP_W / 2, window.innerWidth - TOOLTIP_W - TOOLTIP_PAD),
+  )
+  const fitsAbove = rect.top - TOOLTIP_H - TOOLTIP_PAD > 0
+  const top = fitsAbove ? rect.top - TOOLTIP_PAD : rect.bottom + TOOLTIP_PAD
+  const transform = fitsAbove ? 'translateY(-100%)' : 'none'
+  return { left, top, transform }
+}
+
 interface TooltipState {
   rowIdx: number
   colIdx: number
-  x: number
-  y: number
+  left: number
+  top: number
+  transform: string
 }
 
 export function SeedResultsGrid({ rows, seeds }: Props) {
@@ -188,8 +205,10 @@ export function SeedResultsGrid({ rows, seeds }: Props) {
                   cursor: 'default',
                   backgroundColor: cellBg(cell),
                 }}
-                onMouseEnter={(e) => setTooltip({ rowIdx, colIdx, x: e.clientX, y: e.clientY })}
-                onMouseMove={(e) => setTooltip({ rowIdx, colIdx, x: e.clientX, y: e.clientY })}
+                onMouseEnter={(e) => {
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setTooltip({ rowIdx, colIdx, ...tooltipPos(rect) })
+                }}
                 onMouseLeave={() => setTooltip(null)}
               >
                 <span style={{ fontSize, color: placeColor(cell), fontWeight: 500 }}>
@@ -201,13 +220,14 @@ export function SeedResultsGrid({ rows, seeds }: Props) {
         </div>
       </div>
 
-      {tooltip !== null && activeCell !== null && activeSeed !== null && activeRow !== null && (
+      {tooltip !== null && activeCell !== null && activeSeed !== null && activeRow !== null && createPortal(
         <div
           style={{
             ...TOOLTIP_STYLE,
             position: 'fixed',
-            left: tooltip.x - 150,
-            top: tooltip.y - 10,
+            left: tooltip.left,
+            top: tooltip.top,
+            transform: tooltip.transform,
             zIndex: 50,
           }}
         >
@@ -242,7 +262,8 @@ export function SeedResultsGrid({ rows, seeds }: Props) {
               )}
             </>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

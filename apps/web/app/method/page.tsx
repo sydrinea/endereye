@@ -10,7 +10,7 @@ import Link from 'next/link'
 
 export const metadata = buildMeta({
   title: 'Methodology | endereye',
-  description: 'Learn how the site models survival odds and where its predictions come from',
+  description: 'Learn how the site models survival odds and where its predictions come from.',
   imagePath: '/api/og?type=default',
 })
 
@@ -126,29 +126,6 @@ export default function MethodPage() {
             </p>
           </Section>
 
-          <Section title="Predictive Accuracy">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-zinc-900 border border-zinc-800 rounded-lg p-6 text-center">
-              <Stat
-                label="Overall Survival Brier"
-                value={backtest.metrics.survivalBrier}
-                variant="brier"
-                tooltip="Measures predictive accuracy from 0.0 (perfect) to 1.0. Lower is better."
-              />
-              <Stat
-                label="Pre-Event Win Brier"
-                value={backtest.metrics.seed0WinBrier}
-                variant="brier"
-                tooltip="Accuracy of predicting the overall tournament winners before Seed 1 begins. Lower is better."
-              />
-              <div className="col-span-full pt-4 border-t border-zinc-800/50">
-                <Mono className="text-zinc-600 text-xs">
-                  n = {backtest.metrics.totalPredictions.toLocaleString()} historical predictions
-                  analyzed
-                </Mono>
-              </div>
-            </div>
-          </Section>
-
           <Section title="Invariants">
             {/* Top-level stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-zinc-900 border border-zinc-800 rounded-lg p-6 text-center">
@@ -179,13 +156,36 @@ export default function MethodPage() {
             </div>
           </Section>
 
+          <Section title="Predictive Accuracy">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-zinc-900 border border-zinc-800 rounded-lg p-6 text-center">
+              <Stat
+                label="Overall Survival Brier"
+                value={backtest.metrics.survivalBrier}
+                variant="brier"
+                tooltip="Measures predictive accuracy from 0.0 (perfect) to 1.0. Lower is better."
+              />
+              <Stat
+                label="Pre-Event Win Brier"
+                value={backtest.metrics.seed0WinBrier}
+                variant="brier"
+                tooltip="Accuracy of predicting the overall tournament winners before Seed 1 begins. Lower is better."
+              />
+              <div className="col-span-full pt-4 border-t border-zinc-800/50">
+                <Mono className="text-zinc-600 text-xs">
+                  n = {backtest.metrics.totalPredictions.toLocaleString()} historical predictions
+                  analyzed
+                </Mono>
+              </div>
+            </div>
+          </Section>
+
           {/* Calibration */}
           <Section title="Probability Calibration">
             <p className="text-zinc-400 text-sm leading-relaxed">
               A well-calibrated model should be right as often as it says it will be: when it
               assigns 70% survival odds, the player should survive roughly 70% of the time. The
               chart below shows predicted vs. actual survival rates across all historical LCQ and
-              MSS events. Grey bars are the predicted rate; coloured bars are actual outcomes. Blue
+              MSS events. Grey bars are the predicted rate; colored bars are actual outcomes. Blue
               means well-calibrated; green means the model was conservative; red means it was
               overconfident.
             </p>
@@ -238,7 +238,7 @@ export default function MethodPage() {
               </li>
               <li>
                 Elo and completion time metrics are based on the season ladder. A player having an
-                unusually good or bad day are not reflected.
+                unusually good or bad day is not reflected.
               </li>
               <li>
                 Scenario path validation is based on a small number of historical events. Sample

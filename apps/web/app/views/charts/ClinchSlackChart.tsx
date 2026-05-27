@@ -202,7 +202,7 @@ export function ClinchSlackChart({ data, players, visibleCount }: Props) {
           </BarChart>
         )}
       </ResponsiveContainer>
-      <p className="text-xs text-zinc-600">
+      <p className="text-xs text-zinc-500">
         {manyPlayers
           ? 'Grey bars show lobby average. Dots show individual players — hover to see the full breakdown.'
           : 'Points above (+) or below (−) the score needed to guarantee survival at each cut.'}

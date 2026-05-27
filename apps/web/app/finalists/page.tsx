@@ -37,8 +37,8 @@ export default async function FinalistsPage() {
             <h1 className="font-display text-3xl text-zinc-100">Finalist Results</h1>
             <p className="text-sm text-zinc-500 leading-relaxed">
               Survival odds and clinch slack for every player who qualified across all{' '}
-              {data.events.length} historical events. Use the filters to focus on specific patterns
-              or events.
+              {data.events.length} historical events. Use the presets and event filter to narrow
+              your view.
             </p>
           </div>
           <FinalistsPanel data={data} />

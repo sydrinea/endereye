@@ -30,10 +30,10 @@ const TOOLTIP_STYLE = {
 }
 
 function barColor(avgSwing: number): string {
-  if (avgSwing >= 20) return '#f87171'  // red-400 — very chaotic
-  if (avgSwing >= 15) return '#fb923c'  // orange-400
-  if (avgSwing >= 10) return '#facc15'  // yellow-400
-  return '#4ade80'                      // green-400 — stable
+  if (avgSwing >= 20) return '#f87171' // red-400 — very chaotic
+  if (avgSwing >= 15) return '#fb923c' // orange-400
+  if (avgSwing >= 10) return '#facc15' // yellow-400
+  return '#4ade80' // green-400 — stable
 }
 
 export function SeedSwingChart({ data }: Props) {
@@ -48,7 +48,11 @@ export function SeedSwingChart({ data }: Props) {
   return (
     <div className="flex flex-col gap-3">
       <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={data} margin={{ top: 8, right: 24, left: 0, bottom: 4 }} barCategoryGap="35%">
+        <BarChart
+          data={data}
+          margin={{ top: 8, right: 24, left: 0, bottom: 4 }}
+          barCategoryGap="35%"
+        >
           <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
           <XAxis
             dataKey="seed"
@@ -61,7 +65,14 @@ export function SeedSwingChart({ data }: Props) {
             tickFormatter={(v) => `${v}%`}
             stroke="#3f3f46"
             width={40}
-            label={{ value: '% of field', angle: -90, position: 'insideLeft', fill: '#52525b', fontSize: 10, dy: 44 }}
+            label={{
+              value: '% of field',
+              angle: -90,
+              position: 'insideLeft',
+              fill: '#52525b',
+              fontSize: 10,
+              dy: 44,
+            }}
           />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
@@ -78,8 +89,9 @@ export function SeedSwingChart({ data }: Props) {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-      <p className="text-xs text-zinc-600">
-        Average rank change as a percentage of the alive lobby size, so bars are comparable across seeds even as players get eliminated.
+      <p className="text-xs text-zinc-500">
+        Average rank change as a percentage of the alive lobby size, so bars are comparable across
+        seeds even as players get eliminated.
       </p>
     </div>
   )

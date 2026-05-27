@@ -266,8 +266,8 @@ export function SurvivalScenariosModal({
 
         <div className="px-5 py-3 border-t border-zinc-800">
           <p className="text-xs text-zinc-600">
-            Based on 20k simulated seeds · % of {threatView ? 'elimination' : 'survival'} outcomes
-            where each pattern occurred
+            Based on {(20_000).toLocaleString()} simulated seeds · % of{' '}
+            {threatView ? 'elimination' : 'survival'} outcomes where each pattern occurred
           </p>
         </div>
       </div>
