@@ -20,8 +20,8 @@ export async function generateMetadata({
   if (!event) return {}
   const imagePath = `/api/og?type=event&label=${encodeURIComponent(event.label)}`
   return buildMeta({
-    title: `endereye | ${event.label}`,
-    description: `Live survival odds and match tracking for ${event.label}.`,
+    title: `${event.label} | endereye`,
+    description: `Survival analytics and round tracking for ${event.label}.`,
     imagePath,
   })
 }
@@ -42,12 +42,7 @@ export default async function Page({
   const eventLabel = event.label
   const isActive = event?.slug === activeEvent?.slug
 
-  const eventData = await getEventContext(
-    'lcq',
-    season,
-    event.prefix,
-    event.qualifyCount,
-  )
+  const eventData = await getEventContext('lcq', season, event.prefix, event.qualifyCount)
 
   if (!eventData) return <NoData label={eventLabel} />
 

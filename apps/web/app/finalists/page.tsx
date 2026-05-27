@@ -9,8 +9,8 @@ export const revalidate = false
 import { buildMeta } from '@/lib/og-metadata'
 
 export const metadata = buildMeta({
-  title: 'endereye | Finalist Results',
-  description: 'Survival odds and clinch slack across all finalists from every historical event.',
+  title: 'Finalist Results | endereye',
+  description: 'Survival analytics across all finalists from every historical event',
   imagePath: '/api/og?type=finalists',
 })
 

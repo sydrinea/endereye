@@ -19,8 +19,8 @@ export async function generateMetadata({
   const label = event?.label ?? `${year} World Championships`
   const imagePath = `/api/og?type=event&label=${encodeURIComponent(label)}`
   return buildMeta({
-    title: `endereye | ${label}`,
-    description: `Live survival odds and match tracking for the ${label}.`,
+    title: `${label} | endereye`,
+    description: `Survival analytics and round tracking for ${label}.`,
     imagePath,
   })
 }

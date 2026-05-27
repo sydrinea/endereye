@@ -15,7 +15,9 @@ export function Footer() {
         <div className="flex flex-col items-start gap-3">
           <Ranked size={80} />
           <span className="font-display text-3xl text-zinc-100">endereye</span>
-          <p className="text-sm text-zinc-500">survival odds for MCSR Ranked events</p>
+          <p className="text-sm text-zinc-500">
+            survival analytics for MCSR Ranked LCQ and MSS events
+          </p>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm text-zinc-500">

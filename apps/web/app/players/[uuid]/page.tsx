@@ -18,8 +18,8 @@ export async function generateMetadata({
   const eventCount = career.events.length
   const imagePath = `/api/og?type=player&name=${encodeURIComponent(career.nickname)}&events=${eventCount}`
   return buildMeta({
-    title: `endereye | ${career.nickname}`,
-    description: `Career survival stats for ${career.nickname} across ${eventCount} MCSR Ranked event${eventCount === 1 ? '' : 's'}.`,
+    title: `${career.nickname} | endereye`,
+    description: `Career analytics for ${career.nickname} across ${eventCount} MCSR Ranked event${eventCount === 1 ? '' : 's'}.`,
     imagePath,
   })
 }

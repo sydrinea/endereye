@@ -3,7 +3,7 @@
 
 # endereye
 
-A live survival odds calculator for MCSR Ranked LCQ and MSS events
+Survival analytics for MCSR Ranked LCQ and MSS events
 
 </div>
 

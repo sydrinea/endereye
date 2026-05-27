@@ -38,18 +38,18 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://lcqtracker.vercel.
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
-  title: 'endereye | Live',
-  description: 'Live survival odds for MCSR Ranked LCQ and MSS events',
+  title: 'endereye | LCQ/MSS Tracker',
+  description: 'Survival analytics for MCSR Ranked LCQ and MSS events.',
   openGraph: {
     type: 'website',
-    title: 'endereye | Live',
-    description: 'Live survival odds for MCSR Ranked LCQ and MSS events',
+    title: 'endereye | LCQ/MSS Tracker',
+    description: 'Survival analytics for MCSR Ranked LCQ and MSS events.',
     images: [{ url: '/api/og?type=default', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'endereye | Live',
-    description: 'Live survival odds for MCSR Ranked LCQ and MSS events',
+    title: 'endereye | LCQ/MSS Tracker',
+    description: 'Survival analytics for MCSR Ranked LCQ and MSS events.',
     images: ['/api/og?type=default'],
   },
 }

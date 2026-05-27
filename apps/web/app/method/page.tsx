@@ -1,11 +1,14 @@
-import { CalibrationChart, ScenarioPathChart } from './AccuracyCharts'
-import { CALIBRATION_DATA, SCENARIO_PATH_DATA, MODEL_STATS } from '@/lib/backtest-results'
+import { CalibrationChart, ScenarioPathChart, SeedBrierChart } from './AccuracyCharts'
 import { BackButton } from '@/app/views/BackButton'
-import { Info } from 'lucide-react'
+import { ArrowRight, Info } from 'lucide-react'
 import { buildMeta } from '@/lib/og-metadata'
+import backtest from '@/public/method/backtest.json'
+import scenarios from '@/public/method/scenarios.json'
+import { Mono } from '@/components/ui'
+import Link from 'next/link'
 
 export const metadata = buildMeta({
-  title: 'endereye | Methodology',
+  title: 'Methodology | endereye',
   description: 'Learn how the site models survival odds and where its predictions come from',
   imagePath: '/api/og?type=default',
 })
@@ -102,47 +105,14 @@ export default function MethodPage() {
           </p>
         </div>
 
-        {/* Top-level stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-zinc-900 border border-zinc-800 rounded-lg p-6 text-center">
-          <Stat
-            label="Variation per simulation"
-            value={4.24 * Math.sqrt((0.5 * (1 - 0.5)) / MODEL_STATS.simulationsPerPrediction)}
-            variant="stderr"
-            tooltip="The maximum expected fluctuation in survival odds between page refreshes."
-            pct
-          />
-
-          <Stat
-            label="Survival Brier score"
-            value={MODEL_STATS.brier}
-            variant="brier"
-            tooltip="Measures predictive accuracy from 0.0 (perfect) to 1.0. Lower is better."
-          />
-
-          <Stat
-            label="Safe violations"
-            value={0}
-            variant="brier"
-            tooltip="Times the model guaranteed a player was mathematically safe, but they were actually eliminated. Must remain 0."
-          />
-
-          <Stat
-            label="Clinch violations"
-            value={0}
-            variant="brier"
-            tooltip="Clinch place is the exact placement mathematically guaranteed to secure survival. A violation occurs if a player hits this safety threshold but is still eliminated. Must remain 0."
-          />
-        </div>
-
         {/* How it works */}
-        <Section title="How it works">
+        <Section title="Summary">
           <p className="text-zinc-400 text-sm leading-relaxed">
-            Each time a seed completes, the model runs{' '}
-            {MODEL_STATS.simulationsPerPrediction.toLocaleString()} simulated playthroughs of the
-            remaining seeds. In each simulation, player performance is sampled from a model built on
-            Elo rating and season ladder completion stats (average time, best time). The fraction of
-            simulations in which a player survives the next elimination becomes their displayed
-            survival probability.
+            Each time a seed completes, the model runs {(20_000).toLocaleString()} simulated
+            playthroughs of the remaining seeds. In each simulation, player performance is sampled
+            from a model built on Elo rating and season ladder completion stats (average time, best
+            time). The fraction of simulations in which a player survives the next elimination
+            becomes their displayed survival probability.
           </p>
           <p className="text-zinc-400 text-sm leading-relaxed">
             Survival and threat paths are derived from the same simulation batch. After all
@@ -152,8 +122,60 @@ export default function MethodPage() {
           </p>
         </Section>
 
+        <Section title="Predictive Accuracy">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-zinc-900 border border-zinc-800 rounded-lg p-6 text-center">
+            <Stat
+              label="Overall Survival Brier"
+              value={backtest.metrics.survivalBrier}
+              variant="brier"
+              tooltip="Measures predictive accuracy from 0.0 (perfect) to 1.0. Lower is better."
+            />
+            <Stat
+              label="Pre-Event Win Brier"
+              value={backtest.metrics.seed0WinBrier}
+              variant="brier"
+              tooltip="Accuracy of predicting the overall tournament winners before Seed 1 begins. Lower is better."
+            />
+            <div className="col-span-full pt-4 border-t border-zinc-800/50">
+              <Mono className="text-zinc-600 text-xs">
+                n = {backtest.metrics.totalPredictions.toLocaleString()} historical predictions
+                analyzed
+              </Mono>
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Invariants">
+          {/* Top-level stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-zinc-900 border border-zinc-800 rounded-lg p-6 text-center">
+            <Stat
+              label="Safe violations"
+              value={
+                backtest.safeAudit.filter((a) => a.status === 'safe' && a.survived === false).length
+              }
+              variant="brier"
+              tooltip="Times the model guaranteed a player was mathematically safe, but they were actually eliminated. Must remain 0."
+            />
+
+            <Stat
+              label="Clinch violations"
+              value={
+                backtest.clinchHistory.filter(
+                  (a) =>
+                    typeof a.clinchPlace === 'number' &&
+                    a.actualPlace &&
+                    a.actualPlace <= a.clinchPlace &&
+                    !a.survived,
+                ).length
+              }
+              variant="brier"
+              tooltip="Clinch place is the exact placement mathematically guaranteed to secure survival. A violation occurs if a player hits this safety threshold but is still eliminated. Must remain 0."
+            />
+          </div>
+        </Section>
+
         {/* Calibration */}
-        <Section title="Probability calibration">
+        <Section title="Probability Calibration">
           <p className="text-zinc-400 text-sm leading-relaxed">
             A well-calibrated model should be right as often as it says it will be: when it assigns
             70% survival odds, the player should survive roughly 70% of the time. The chart below
@@ -162,12 +184,12 @@ export default function MethodPage() {
             well-calibrated; green means the model was conservative; red means it was overconfident.
           </p>
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-            <CalibrationChart data={CALIBRATION_DATA} />
+            <CalibrationChart data={backtest.metrics.calibrationBuckets} />
           </div>
         </Section>
 
         {/* Scenario path accuracy */}
-        <Section title="Scenario path accuracy">
+        <Section title="Scenario Path Accuracy">
           <p className="text-zinc-400 text-sm leading-relaxed">
             To validate survival and threat paths, I check historical events against the
             model&apos;s predictions. For each player the model expected to survive who was actually
@@ -179,16 +201,25 @@ export default function MethodPage() {
             blue bar is the model&apos;s actual hit rate.
           </p>
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-            <ScenarioPathChart data={SCENARIO_PATH_DATA} />
+            <ScenarioPathChart data={scenarios} />
             <div className="flex gap-6 mt-3 px-1">
               <p className="text-xs text-zinc-600">
-                Threat paths: n={SCENARIO_PATH_DATA.threat.n} surprise eliminations across all
-                events
+                Threat paths: n={scenarios.threat.n} surprise eliminations across all events
               </p>
               <p className="text-xs text-zinc-600">
-                Survival paths: n={SCENARIO_PATH_DATA.survival.n} clutch survivals across all events
+                Survival paths: n={scenarios.survival.n} clutch survivals across all events
               </p>
             </div>
+          </div>
+        </Section>
+
+        <Section title="Accuracy by Round (Brier Score)">
+          <p className="text-zinc-400 text-sm leading-relaxed">
+            As the tournament progresses, the model&apos;s accuracy changes because the pool gets
+            smaller. This chart tracks the average Brier error as we approach the final seed.
+          </p>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 pt-6">
+            <SeedBrierChart data={backtest.metrics.perSeedBrier} />
           </div>
         </Section>
 
@@ -213,7 +244,54 @@ export default function MethodPage() {
             </li>
           </ul>
         </Section>
+
+        <Section title="Raw Data">
+          <RawDataCard
+            label="Accuracy Backtest"
+            href="/method/backtest.json"
+            updated={backtest.generatedAt}
+          />
+          <RawDataCard
+            label="Survival/Threat Scenarios Backtest"
+            href="/method/scenarios.json"
+            updated={scenarios.generatedAt}
+          />
+        </Section>
       </div>
     </main>
+  )
+}
+export function RawDataCard({
+  label,
+  href,
+  updated,
+}: {
+  label: string
+  href: string
+  updated: string
+}) {
+  const formattedDate = new Intl.DateTimeFormat('en-GB', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(updated))
+
+  return (
+    <Link href={href} target="_blank" className="group w-full">
+      <div className="flex items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 transition-colors group-hover:border-zinc-700">
+        <div className="flex flex-col min-w-0 gap-0.5">
+          <span className="text-sm text-zinc-400 group-hover:text-zinc-300 transition-colors truncate">
+            {label}
+          </span>
+          <span className="text-xs text-zinc-500 truncate">Updated {formattedDate}</span>
+        </div>
+
+        <span className="inline-flex items-center gap-1 text-zinc-600 group-hover:text-zinc-400 transition-colors text-xs shrink-0">
+          View <ArrowRight size={12} />
+        </span>
+      </div>
+    </Link>
   )
 }
