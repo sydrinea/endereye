@@ -186,7 +186,15 @@ export function ClinchSlackChart({ data, players, visibleCount }: Props) {
               }}
               cursor={{ fill: 'rgba(255,255,255,0.03)' }}
             />
-            <Legend wrapperStyle={{ fontSize: '11px', color: '#71717a', paddingTop: '8px' }} />
+            <Legend
+              wrapperStyle={{
+                fontSize: '11px',
+                color: '#71717a',
+                paddingTop: '8px',
+                width: '100%',
+                left: 0,
+              }}
+            />
             <ReferenceLine y={0} stroke="#52525b" />
             {players.map((p) => (
               <Bar key={p.nickname} dataKey={p.nickname} fill={p.color} radius={[2, 2, 0, 0]} />

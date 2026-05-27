@@ -168,6 +168,8 @@ export function ClinchSlackTrajectoryChart({
                 paddingTop: '8px',
                 textAlign: 'center',
                 margin: 'auto',
+                width: '100%',
+                left: 0,
               }}
             />
           )}

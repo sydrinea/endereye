@@ -292,7 +292,15 @@ export function SurvivalOddsChart({
           </>
         ) : (
           <>
-            <Legend wrapperStyle={{ fontSize: '11px', color: '#71717a', paddingTop: '8px' }} />
+            <Legend
+              wrapperStyle={{
+                fontSize: '11px',
+                color: '#71717a',
+                paddingTop: '8px',
+                width: '100%',
+                left: 0,
+              }}
+            />
             {players.map((p) => (
               <Line
                 key={p.nickname}
