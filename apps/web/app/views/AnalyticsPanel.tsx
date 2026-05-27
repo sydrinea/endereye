@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { EventContext } from '@endereye/core'
-import type { SeedSnapshot } from './analytics.worker'
+import type { SeedSnapshot, WorkerMessage } from './analytics.worker'
 import { Spinner } from './Spinner'
 import { SurvivalOddsChart } from './charts/SurvivalOddsChart'
 import { ClinchSlackChart } from './charts/ClinchSlackChart'
@@ -71,6 +71,7 @@ export function AnalyticsPanel({
     eventData: EventContext
     snapshots: SeedSnapshot[]
   } | null>(null)
+  const [progress, setProgress] = useState<{ completed: number; total: number } | null>(null)
   const snapshots = result?.eventData === eventData ? result.snapshots : null
 
   const eventKeyRef = useRef(eventData)
@@ -82,10 +83,16 @@ export function AnalyticsPanel({
   }, [eventData])
 
   useEffect(() => {
+    setProgress(null)
     const worker = new Worker(new URL('./analytics.worker.ts', import.meta.url))
-    worker.onmessage = (e: MessageEvent<SeedSnapshot[]>) => {
-      setResult({ eventData, snapshots: e.data })
-      worker.terminate()
+    worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
+      const msg = e.data
+      if (msg.type === 'progress') {
+        setProgress({ completed: msg.completed, total: msg.total })
+      } else {
+        setResult({ eventData, snapshots: msg.snapshots })
+        worker.terminate()
+      }
     }
     worker.postMessage(eventData)
     return () => worker.terminate()
@@ -98,9 +105,23 @@ export function AnalyticsPanel({
   if (!snapshots) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="flex flex-col items-center gap-3 text-zinc-500">
-          <Spinner size={32} color="neutral" />
-          <span className="text-sm">Running simulations…</span>
+        <div className="flex flex-col items-center gap-3 w-64">
+          <span className="text-sm text-zinc-500">Running simulations…</span>
+          {progress ? (
+            <>
+              <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-zinc-400 h-full rounded-full transition-all duration-150"
+                  style={{ width: `${(progress.completed / progress.total) * 100}%` }}
+                />
+              </div>
+              <span className="text-xs text-zinc-600">
+                {progress.completed} / {progress.total} seeds
+              </span>
+            </>
+          ) : (
+            <Spinner size={24} color="neutral" />
+          )}
         </div>
       </div>
     )

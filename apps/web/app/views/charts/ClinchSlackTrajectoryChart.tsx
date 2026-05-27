@@ -63,7 +63,12 @@ interface TrajectoryTooltipProps {
   entityLabel?: string
 }
 
-function TrajectoryTooltip({ active, payload, label, entityLabel = 'players' }: TrajectoryTooltipProps) {
+function TrajectoryTooltip({
+  active,
+  payload,
+  label,
+  entityLabel = 'players',
+}: TrajectoryTooltipProps) {
   if (!active || !payload?.length) return null
 
   // Filter out nulls and sort highest slack to the top
@@ -110,7 +115,12 @@ function TrajectoryTooltip({ active, payload, label, entityLabel = 'players' }: 
   )
 }
 
-export function ClinchSlackTrajectoryChart({ data, players, entityLabel = 'players', overlays }: Props) {
+export function ClinchSlackTrajectoryChart({
+  data,
+  players,
+  entityLabel = 'players',
+  overlays,
+}: Props) {
   const hasAnyData = data.some(
     (point) => players.some((p) => p.nickname in point) || overlays?.some((o) => o.key in point),
   )
@@ -151,7 +161,15 @@ export function ClinchSlackTrajectoryChart({ data, players, entityLabel = 'playe
 
           {/* Conditionally render the legend only when it's easily readable */}
           {!manyPlayers && (
-            <Legend wrapperStyle={{ fontSize: '11px', color: '#71717a', paddingTop: '8px' }} />
+            <Legend
+              wrapperStyle={{
+                fontSize: '11px',
+                color: '#71717a',
+                paddingTop: '8px',
+                textAlign: 'center',
+                margin: 'auto',
+              }}
+            />
           )}
 
           {/* The zero line represents the exact threshold of survival */}
@@ -188,7 +206,7 @@ export function ClinchSlackTrajectoryChart({ data, players, entityLabel = 'playe
           ))}
         </ComposedChart>
       </ResponsiveContainer>
-      <p className="text-xs text-zinc-600">
+      <p className="text-xs text-zinc-500 text-center">
         How each player&apos;s margin of error evolved across the cuts. Lines stop when a player is
         eliminated.
       </p>

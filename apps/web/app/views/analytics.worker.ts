@@ -7,14 +7,19 @@ export interface SeedSnapshot {
   brackets: BracketEntry[]
 }
 
+export type WorkerMessage =
+  | { type: 'progress'; completed: number; total: number }
+  | { type: 'done'; snapshots: SeedSnapshot[] }
+
 self.onmessage = (e: MessageEvent<EventContext>) => {
   const eventData = e.data
-  const totalSeeds = eventData.currentRound - 1
+  const total = eventData.currentRound - 1
   const snapshots: SeedSnapshot[] = []
-  for (let seed = 1; seed <= totalSeeds; seed++) {
+  for (let seed = 1; seed <= total; seed++) {
     const ctx = computeHistoricalData(eventData, seed)
     const playerOdds = computePlayerOdds(ctx)
     snapshots.push({ seed, playerOdds, brackets: ctx.brackets })
+    self.postMessage({ type: 'progress', completed: seed, total } satisfies WorkerMessage)
   }
-  self.postMessage(snapshots)
+  self.postMessage({ type: 'done', snapshots } satisfies WorkerMessage)
 }
