@@ -7,7 +7,7 @@ export function PlayerCard({ uuid, nickname }: { uuid: string; nickname: string 
     <Link href={`/players/${uuid}`} className="group w-full">
       <div className="flex items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 transition-colors group-hover:border-zinc-700">
         <div className="flex items-center gap-3 min-w-0">
-          <PlayerAvatar nickname={nickname} size="md" />
+          <PlayerAvatar nickname={uuid} size="md" />
           <span className="font-display text-sm text-zinc-200 group-hover:text-zinc-100 transition-colors truncate">
             {nickname}
           </span>
