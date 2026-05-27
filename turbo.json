@@ -3,7 +3,20 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "*.tsbuildinfo", "tsconfig.tsbuildinfo", ".next/**", "!.next/cache/**"]
+      "outputs": [
+        "dist/**",
+        "*.tsbuildinfo",
+        "tsconfig.tsbuildinfo",
+        ".next/**",
+        "!.next/cache/**"
+      ],
+      "env": [
+        "R2_ENDPOINT",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_BUCKET_NAME",
+        "DASHBOARD_SECRET"
+      ]
     },
     "dev": {
       "cache": false,
