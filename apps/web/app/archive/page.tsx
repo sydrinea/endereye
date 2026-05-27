@@ -9,7 +9,7 @@ export const revalidate = false
 export const metadata = buildMeta({
   title: 'Archive | endereye',
   description:
-    'Review survival analytics and round history for past MCSR Ranked LCQ and MSS events',
+    'Review survival analytics and round history for past MCSR Ranked LCQ and MSS events.',
   imagePath: '/api/og?type=default',
 })
 
