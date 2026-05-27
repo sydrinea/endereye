@@ -1,17 +1,21 @@
+'use client'
+
 import { Breadcrumbs, PlayerAvatar } from '@/components/ui'
 import type { CareerContext } from '@/lib/career-data'
+import { useCareerModal } from './CareerModal'
 
 export function CareerHeader({ career }: { career: CareerContext }) {
+  const inModal = useCareerModal()
   return (
     <div className="text-zinc-400">
         <div className="flex flex-col gap-4">
-          <Breadcrumbs
+          {!inModal && <Breadcrumbs
             items={[
               { label: 'Home', href: '/' },
               { label: 'Players', href: '/players' },
               { label: career.nickname },
             ]}
-          />
+          />}
           <div className="flex items-center gap-4">
             <PlayerAvatar nickname={career.nickname} size="lg" />
             <div>
