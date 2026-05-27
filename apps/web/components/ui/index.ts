@@ -1,3 +1,4 @@
+export { Breadcrumbs } from './Breadcrumbs'
 export { Label } from './Label'
 export { Pill } from './Pill'
 export { Mono } from './Mono'

@@ -1,17 +1,17 @@
-import Link from 'next/link'
-import { PlayerAvatar } from '@/components/ui'
-import { Surface } from '@/components/layout'
+import { Breadcrumbs, PlayerAvatar } from '@/components/ui'
 import type { CareerContext } from '@/lib/career-data'
-import { BackButton } from './BackButton'
 
 export function CareerHeader({ career }: { career: CareerContext }) {
   return (
-    <>
-      <div className="w-full px-4 lg:px-8 pt-4">
-        <BackButton />
-      </div>
-      <Surface width="xl">
-        <div className="flex flex-col gap-4 pt-4 pb-4">
+    <div className="text-zinc-400">
+        <div className="flex flex-col gap-4">
+          <Breadcrumbs
+            items={[
+              { label: 'Home', href: '/' },
+              { label: 'Players', href: '/players' },
+              { label: career.nickname },
+            ]}
+          />
           <div className="flex items-center gap-4">
             <PlayerAvatar nickname={career.nickname} size="lg" />
             <div>
@@ -21,18 +21,16 @@ export function CareerHeader({ career }: { career: CareerContext }) {
           </div>
           <div className="flex flex-wrap gap-2">
             {career.events.map((e) => (
-              <Link
+              <div
                 key={e.label}
-                href={e.path}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs border border-zinc-800 bg-zinc-900 hover:border-zinc-700 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs border border-zinc-800 bg-zinc-900"
                 style={{ color: e.color }}
               >
                 {e.label}
-              </Link>
+              </div>
             ))}
           </div>
         </div>
-      </Surface>
-    </>
+      </div>
   )
 }

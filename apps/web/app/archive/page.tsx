@@ -1,7 +1,8 @@
+import { Footer } from '@/components/layout'
 import { connection } from 'next/server'
 import { getAllEvents } from '../../lib/events-config'
 import { EventCard } from '../views/EventCard'
-import { BackButton } from '../views/BackButton'
+import { Breadcrumbs } from '@/components/ui'
 import { buildMeta } from '@/lib/og-metadata'
 
 export const revalidate = false
@@ -25,9 +26,10 @@ export default async function ArchivePage() {
   const mss = past.filter((e) => e.kind === 'mss')
 
   return (
+    <>
     <main className="flex flex-col items-center px-6 py-8 gap-6">
       <div className="w-full max-w-4xl">
-        <BackButton />
+        <Breadcrumbs items={[{ label: 'Home', href: '/' }, { label: 'Archives' }]} />
         <div className="flex items-center justify-between mb-6 mt-2">
           <h1 className="font-display text-3xl text-zinc-100">Archives</h1>
         </div>
@@ -60,5 +62,7 @@ export default async function ArchivePage() {
         )}
       </div>
     </main>
+    <Footer />
+    </>
   )
 }

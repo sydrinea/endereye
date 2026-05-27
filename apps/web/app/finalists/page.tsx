@@ -1,12 +1,12 @@
-import { getAllEvents } from '@/lib/events-config'
-import { getEventContext } from '@/lib/event-data'
-import { computeFinalistsData } from '@/lib/finals-stats'
-import { BackButton } from '@/app/views/BackButton'
+import { Footer } from '@/components/layout'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { Breadcrumbs } from '@/components/ui'
 import { FinalistsPanel } from './FinalistsPanel'
+import { buildMeta } from '@/lib/og-metadata'
+import type { FinalistsChartData } from '@/lib/finals-stats'
 
 export const revalidate = false
-
-import { buildMeta } from '@/lib/og-metadata'
 
 export const metadata = buildMeta({
   title: 'Finalist Results | endereye',
@@ -15,34 +15,17 @@ export const metadata = buildMeta({
 })
 
 export default async function FinalistsPage() {
-  const allEvents = await getAllEvents()
-  const now = new Date()
-  const completed = allEvents
-    .filter((e) => e.startDate < now)
-    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
-
-  const loaded = (
-    await Promise.all(
-      completed.map(async (config) => {
-        const context = await getEventContext(
-          config.kind,
-          config.season,
-          config.prefix,
-          config.qualifyCount,
-        )
-        if (!context) return null
-        return { config, context }
-      }),
-    )
-  ).filter((x): x is NonNullable<typeof x> => x !== null)
-
-  const data = computeFinalistsData(loaded)
+  const data = await readFile(
+    join(process.cwd(), 'public', 'data', 'finalists.json'),
+    'utf-8',
+  ).then((json) => JSON.parse(json) as FinalistsChartData)
 
   return (
+    <>
     <main className="flex flex-col items-center px-6 py-8 gap-8">
       <div className="w-full max-w-3xl flex flex-col gap-6">
         <div className="flex flex-col gap-2">
-          <BackButton />
+          <Breadcrumbs items={[{ label: 'Home', href: '/' }, { label: 'Finalist Results' }]} />
           <h1 className="font-display text-3xl text-zinc-100">Finalist Results</h1>
           <p className="text-sm text-zinc-500 leading-relaxed">
             Survival odds and clinch slack for every player who qualified across all{' '}
@@ -53,5 +36,7 @@ export default async function FinalistsPage() {
         <FinalistsPanel data={data} />
       </div>
     </main>
+    <Footer />
+    </>
   )
 }

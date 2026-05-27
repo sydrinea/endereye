@@ -3,7 +3,6 @@ import { Geist_Mono, Raleway, Lora } from 'next/font/google'
 import localFont from 'next/font/local'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
-import { Footer } from '@/components/layout'
 import './globals.css'
 
 const minecraft = localFont({
@@ -63,8 +62,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({
   children,
+  modal,
 }: Readonly<{
   children: React.ReactNode
+  modal: React.ReactNode
 }>) {
   return (
     <html
@@ -73,7 +74,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-zinc-950">
         <div className="flex-1">{children}</div>
-        <Footer />
+        {modal}
         {process.env.VERCEL_ENV === 'production' && <Analytics />}
         <SpeedInsights />
       </body>

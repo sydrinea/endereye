@@ -2,6 +2,7 @@ import { connection } from 'next/server'
 import { getActiveEvent, getAllEvents } from '../lib/events-config'
 import { getEventContext } from '../lib/event-data'
 import { HeroSection } from './views/HeroSection'
+import { Footer } from '@/components/layout'
 
 export const revalidate = false
 
@@ -20,11 +21,14 @@ export default async function Page() {
   const isOver = isLive ? (eventData?.currentRound ?? 0) > 10 : false
 
   return (
-    <HeroSection
-      event={activeEvent}
-      upcomingEvents={upcomingEvents}
-      hasPastEvents={pastEvents.length > 0}
-      isOver={isOver}
-    />
+    <>
+      <HeroSection
+        event={activeEvent}
+        upcomingEvents={upcomingEvents}
+        hasPastEvents={pastEvents.length > 0}
+        isOver={isOver}
+      />
+      <Footer />
+    </>
   )
 }

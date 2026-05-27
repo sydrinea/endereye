@@ -1,14 +1,7 @@
-'use client'
-
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import Ranked from '@/components/icons/Ranked'
 
-const HIDDEN_PATHS = ['/live']
-
 export function Footer() {
-  const pathname = usePathname()
-  if (HIDDEN_PATHS.includes(pathname)) return null
   return (
     <footer className="mt-16 border-t border-zinc-800 bg-zinc-900">
       <div className="mx-auto max-w-5xl px-6 py-12 flex flex-col gap-8">
@@ -24,6 +17,9 @@ export function Footer() {
           <div className="flex items-center gap-4">
             <Link href="/method" className="hover:text-zinc-300 transition-colors">
               Methodology
+            </Link>
+            <Link href="/players" className="hover:text-zinc-300 transition-colors">
+              Players
             </Link>
             <Link href="/finalists" className="hover:text-zinc-300 transition-colors">
               Finalists
