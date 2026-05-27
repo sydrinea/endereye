@@ -231,7 +231,7 @@ function FinalistsTemplate({ players }: { players: string[] }) {
 function PlayersTemplate({ players }: { players: string[] }) {
   return (
     <Wrapper behavior="space-between">
-      <PlayerHeadGrid players={players} size={42} />
+      <PlayerHeadGrid players={players} />
       <LogoTitle title="Players" />
     </Wrapper>
   )

@@ -21,7 +21,7 @@ async function getPlayerUuids(): Promise<string[]> {
     const fileContents = await readFile(filePath, 'utf-8')
     const data = JSON.parse(fileContents)
 
-    if (Array.isArray(data) && data.length >= 3) {
+    if (Array.isArray(data) && data.length >= 7) {
       return file.replace('.json', '')
     }
 
