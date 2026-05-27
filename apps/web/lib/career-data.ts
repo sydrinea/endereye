@@ -4,6 +4,30 @@ import type { EventConfig } from './events-config'
 import { getEventContext } from './event-data'
 import { getR2Object } from './r2'
 
+export interface CareerSeedSnapshot {
+  seed: number
+  survivalPct: number
+  clinchSlack: number | null
+}
+
+export interface CareerSeedResultCell {
+  place: number | null
+  score: number | null
+  rankAfter: number | null
+  rankDelta: number | null
+  eliminated: boolean
+}
+
+export interface CareerEventSlice {
+  label: string
+  color: string
+  snapshots: CareerSeedSnapshot[]
+  finalRank: number | null
+  qualified: boolean
+  dnfSeeds: Array<{ seed: number; survivalDrop: number }>
+  seedResults: CareerSeedResultCell[]
+}
+
 export const CAREER_COLORS = [
   '#38bdf8',
   '#4ade80',
