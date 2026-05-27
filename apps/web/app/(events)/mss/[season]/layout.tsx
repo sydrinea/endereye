@@ -1,10 +1,11 @@
-import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { getEventContext } from '../../../lib/event-data'
-import { DashboardWrapper } from '@/app/views/DashboardWrapper'
-import { NoData } from '@/app/views/NoData'
+import { notFound } from 'next/navigation'
+import { Footer } from '@/components/layout'
 import { getAllEvents, getActiveEvent } from '@/lib/events-config'
+import { getEventContext } from '@/lib/event-data'
 import { buildMeta } from '@/lib/og-metadata'
+import { EventShell } from '@/app/views/EventShell'
+import { NoData } from '@/app/views/NoData'
 
 export const revalidate = false
 
@@ -26,12 +27,12 @@ export async function generateMetadata({
   })
 }
 
-export default async function Page({
+export default async function MSSSeasonLayout({
+  children,
   params,
-  searchParams,
 }: {
+  children: React.ReactNode
   params: Promise<{ season: string }>
-  searchParams: Promise<{ seed?: string }>
 }) {
   const { season: seasonParam } = await params
   const season = Number(seasonParam)
@@ -39,24 +40,23 @@ export default async function Page({
   const [allEvents, activeEvent] = await Promise.all([getAllEvents(), getActiveEvent()])
   const event = allEvents.find((e) => e.kind === 'mss' && e.season === season)
   if (!event) return notFound()
-  const eventLabel = event.label
-  const isActive = event.slug === activeEvent?.slug
 
   const eventData = await getEventContext('mss', season, event.prefix, event.qualifyCount)
+  if (!eventData) return <NoData label={event.label} />
 
-  if (!eventData) return <NoData label={eventLabel} />
-
-  const { seed: seedParam } = await searchParams
-  const defaultSeed = Math.max(eventData.currentRound - 1, 0)
-  const seed = Math.min(Math.max(Number(seedParam ?? defaultSeed), 0), 10)
+  const isActive = event.slug === activeEvent?.slug
 
   return (
-    <DashboardWrapper
-      eventData={eventData}
-      seed={seed}
-      eventLabel={eventLabel}
-      live={isActive}
-      backHref="/"
-    />
+    <>
+      <EventShell
+        eventData={eventData}
+        eventLabel={event.label}
+        live={isActive}
+        basePath={`/mss/${season}`}
+      >
+        {children}
+      </EventShell>
+      <Footer />
+    </>
   )
 }

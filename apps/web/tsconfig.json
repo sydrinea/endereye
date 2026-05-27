@@ -31,7 +31,5 @@
     "**/*.mts"
   ],
   "exclude": ["node_modules"],
-  "references": [
-    { "path": "../../packages/core" }
-  ]
+  "references": [{ "path": "../../packages/core" }]
 }

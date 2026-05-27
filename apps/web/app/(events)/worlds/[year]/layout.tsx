@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
-import { getEventContext } from '../../../lib/event-data'
-import { DashboardWrapper } from '@/app/views/DashboardWrapper'
-import { NoData } from '@/app/views/NoData'
+import { Footer } from '@/components/layout'
 import { getAllEvents, getActiveEvent } from '@/lib/events-config'
+import { getEventContext } from '@/lib/event-data'
 import { buildMeta } from '@/lib/og-metadata'
+import { EventShell } from '@/app/views/EventShell'
+import { NoData } from '@/app/views/NoData'
 
 export const revalidate = false
 
@@ -25,12 +26,12 @@ export async function generateMetadata({
   })
 }
 
-export default async function Page({
+export default async function WorldsYearLayout({
+  children,
   params,
-  searchParams,
 }: {
+  children: React.ReactNode
   params: Promise<{ year: string }>
-  searchParams: Promise<{ seed?: string }>
 }) {
   const { year: yearParam } = await params
   const year = Number(yearParam)
@@ -49,17 +50,17 @@ export default async function Page({
 
   if (!eventData) return <NoData label={eventLabel} />
 
-  const { seed: seedParam } = await searchParams
-  const defaultSeed = Math.max(eventData.currentRound - 1, 0)
-  const seed = Math.min(Math.max(Number(seedParam ?? defaultSeed), 0), 10)
-
   return (
-    <DashboardWrapper
-      eventData={eventData}
-      seed={seed}
-      eventLabel={eventLabel}
-      live={isActive}
-      backHref="/"
-    />
+    <>
+      <EventShell
+        eventData={eventData}
+        eventLabel={eventLabel}
+        live={isActive}
+        basePath={`/worlds/${year}`}
+      >
+        {children}
+      </EventShell>
+      <Footer />
+    </>
   )
 }
