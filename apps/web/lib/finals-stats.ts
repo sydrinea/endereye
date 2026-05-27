@@ -4,7 +4,7 @@ import {
   ELIMINATION_SCHEDULE,
   QUALIFY_COUNT,
   MAX_SCORE_PER_SEED,
-  median,
+  mean,
 } from '@endereye/core'
 import type { EventContext } from '@endereye/core'
 import type { EventConfig } from './events-config'
@@ -147,7 +147,7 @@ export function computeFinalistsData(
     }
     const deepVals = deepRunSurvivalBySeed.get(seed)
     if (deepVals?.length) {
-      row[DEEP_RUNS_KEY] = Math.round(median(deepVals))
+      row[DEEP_RUNS_KEY] = Math.round(mean(deepVals))
     }
     return row
   })
@@ -162,7 +162,7 @@ export function computeFinalistsData(
     }
     const deepVals = deepRunSlackBySeed.get(seed)
     if (deepVals?.length) {
-      row[DEEP_RUNS_KEY] = Math.round(median(deepVals))
+      row[DEEP_RUNS_KEY] = Math.round(mean(deepVals))
     }
     return row
   })

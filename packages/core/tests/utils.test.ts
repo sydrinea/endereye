@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rocAuc, median } from '../lib/utils'
+import { rocAuc, mean } from '../lib/utils'
 
 describe('rocAuc', () => {
   it('returns 1.0 when all winners have strictly higher probability than all losers', () => {
@@ -80,26 +80,8 @@ describe('rocAuc', () => {
   })
 })
 
-describe('median', () => {
-  it('returns the middle value for an odd-length array', () => {
-    expect(median([3, 1, 2])).toBe(2)
-  })
-
-  it('returns the average of the two middle values for an even-length array', () => {
-    expect(median([1, 2, 3, 4])).toBe(2.5)
-  })
-
-  it('returns the single element for a length-1 array', () => {
-    expect(median([42])).toBe(42)
-  })
-
-  it('handles unsorted input correctly', () => {
-    expect(median([9, 1, 5, 3, 7])).toBe(5)
-  })
-
-  it('does not mutate the input array', () => {
-    const arr = [3, 1, 2]
-    median(arr)
-    expect(arr).toEqual([3, 1, 2])
+describe('mean', () => {
+  it('returns the average value', () => {
+    expect(mean([3, 1, 2])).toBe(2)
   })
 })

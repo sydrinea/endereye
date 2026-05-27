@@ -169,7 +169,13 @@ function findOutliers(data: Array<Record<string, number>>, players: SurvivalPlay
   return outliers
 }
 
-export function SurvivalOddsChart({ data, players, cutSeeds, entityLabel = 'players', overlays }: Props) {
+export function SurvivalOddsChart({
+  data,
+  players,
+  cutSeeds,
+  entityLabel = 'players',
+  overlays,
+}: Props) {
   if (data.length < 2 || players.length === 0) {
     return (
       <p className="text-zinc-500 text-sm py-8 text-center">
@@ -231,7 +237,7 @@ export function SurvivalOddsChart({ data, players, cutSeeds, entityLabel = 'play
               />
             ))}
 
-            {/* Tier median lines — the "pack" */}
+            {/* Tier mean lines — the "pack" */}
             {TIER_CONFIG.map((tier) => (
               <Line
                 key={`tier-${tier.key}`}

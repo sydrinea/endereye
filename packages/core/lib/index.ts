@@ -1,4 +1,4 @@
-export { median } from './utils'
+export { mean } from './utils'
 export * from './api/types'
 export * from './api/fetch'
 

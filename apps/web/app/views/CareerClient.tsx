@@ -13,11 +13,9 @@ import { Spinner } from './Spinner'
 const ALL_SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 const CUT_SEEDS = [3, 5, 7, 8, 9, 10]
 
-function median(values: number[]): number | null {
+export function mean(values: number[]): number | null {
   if (values.length === 0) return null
-  const sorted = [...values].sort((a, b) => a - b)
-  const mid = Math.floor(sorted.length / 2)
-  return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid]
+  return values.reduce((a, b) => a + b) / values.length
 }
 
 function Section({
@@ -116,7 +114,7 @@ export function CareerClient({ career }: { career: CareerContext }) {
         )
       : null
   const allDnfDrops = slices.flatMap((s) => s.dnfSeeds.map((d) => d.survivalDrop))
-  const medianDnf = median(allDnfDrops)
+  const meanDnf = mean(allDnfDrops)
 
   const survivalSeasons = slices.map((s) => ({ nickname: s.label, color: s.color }))
   const survivalData = ALL_SEEDS.map((seed) => {
@@ -151,21 +149,33 @@ export function CareerClient({ career }: { career: CareerContext }) {
           <StatChip label="Events" value={String(slices.length)} />
           <StatChip label="Qualified" value={`${qualified} / ${slices.length}`} />
           <StatChip label="Avg Final Rank" value={avgRank !== null ? `#${avgRank}` : '—'} />
-          <StatChip label="Median DNF Drop" value={medianDnf !== null ? `−${medianDnf}%` : '—'} />
+          <StatChip
+            label="Mean DNF Drop"
+            value={meanDnf !== null ? `−${meanDnf.toFixed(2)}%` : '—'}
+          />
         </div>
 
         <Section
           title="Survival Odds Trajectory"
           description="How this player's probability of surviving the next cut evolved across each of their seasons."
         >
-          <SurvivalOddsChart data={survivalData} players={survivalSeasons} cutSeeds={CUT_SEEDS} entityLabel="seasons" />
+          <SurvivalOddsChart
+            data={survivalData}
+            players={survivalSeasons}
+            cutSeeds={CUT_SEEDS}
+            entityLabel="seasons"
+          />
         </Section>
 
         <Section
           title="Clinch Slack Trajectory"
           description="Margin above or below the score needed to clinch survival at each cut, across all seasons. Above zero means they had breathing room; below means they were relying on others."
         >
-          <ClinchSlackTrajectoryChart data={slackData} players={slackSeasons} entityLabel="seasons" />
+          <ClinchSlackTrajectoryChart
+            data={slackData}
+            players={slackSeasons}
+            entityLabel="seasons"
+          />
         </Section>
 
         <Section
