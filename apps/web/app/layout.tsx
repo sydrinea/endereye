@@ -72,7 +72,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-zinc-950">
         <div className="flex-1">{children}</div>
         <Footer />
-        <Analytics />
+        {process.env.VERCEL_ENV === 'production' && <Analytics />}
         <SpeedInsights />
       </body>
     </html>
