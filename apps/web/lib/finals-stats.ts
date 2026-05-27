@@ -4,16 +4,11 @@ import {
   ELIMINATION_SCHEDULE,
   QUALIFY_COUNT,
   MAX_SCORE_PER_SEED,
+  median,
 } from '@endereye/core'
 import type { EventContext } from '@endereye/core'
 import type { EventConfig } from './events-config'
 import { PLAYER_COLORS, CLINCH_CUT_SEEDS } from './analytics-stats'
-
-function median(vals: number[]): number {
-  const sorted = [...vals].sort((a, b) => a - b)
-  const mid = Math.floor(sorted.length / 2)
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
-}
 
 export interface FinalistEntry {
   key: string // "{uuid}_{eventSlug}"

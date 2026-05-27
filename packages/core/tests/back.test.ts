@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { afterAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { computeHistoricalData, calculatePoints } from '../lib/core/context'
 import { computePlayerOdds } from '../lib/core/odds'
@@ -29,36 +29,78 @@ try {
 }
 
 const ELITE_THRESHOLD = 1900
-
-let totalPredictions = 0
-let brierScoreSum = 0
-let clinchViolations = 0
-let safeViolations = 0
-let pointsDiscrepancies = 0
-let totalClinchSlack = 0
-let clinchSlackMeasurements = 0
-let seed0WinBrierSum = 0
-let seed0TotalPredictions = 0
-
 const VARIANCE_BOUND = 0.025
-let maxObservedShift = 0
-let stabilityViolations = 0
 
-const stepBuckets = Array.from({ length: 10 }, () => ({ count: 0, sum: 0, actual: 0 }))
-const seedBrierData = Array.from({ length: 10 }, () => ({ sum: 0, count: 0 }))
-const seed0WinBuckets = Array.from({ length: 10 }, () => ({ count: 0, sum: 0, actual: 0 }))
-const seed0RocPairs: {
-  name: string
-  event: string
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type BootstrapPair = { custom: number; baseline: number; actual: number }
+
+interface WinProbEntry {
   season: number
-  prob: number
-  actual: number
+  event: string
+  uuid: string
+  nickname: string
   elo: number
-}[] = []
-const bootstrapPairs: { custom: number; baseline: number; actual: number }[] = []
-const seed0PlayerTracker: Array<
-  Array<{ name: string; season: number; kind: EventKind; prob: number; won: boolean }>
-> = Array.from({ length: 10 }, () => [])
+  winProb: number
+  won: boolean
+}
+
+interface ClinchEntry {
+  season: number
+  event: string
+  uuid: string
+  nickname: string
+  seed: number
+  clinchScore: number
+  clinchPlace: number | 'DNF'
+  actualPlace: number | null
+  survived: boolean
+}
+
+interface SafeEntry {
+  season: number
+  event: string
+  uuid: string
+  nickname: string
+  seed: number
+  status: string
+  survived: boolean
+}
+
+interface BacktestResults {
+  totalPredictions: number
+  brierScoreSum: number
+  missingTruthCount: number
+  clinchViolations: number
+  safeViolations: number
+  pointsDiscrepancies: number
+  totalClinchSlack: number
+  clinchSlackMeasurements: number
+  seed0WinBrierSum: number
+  seed0TotalPredictions: number
+  maxObservedShift: number
+  stabilityViolations: number
+  stepBuckets: Array<{ count: number; sum: number; actual: number }>
+  seedBrierData: Array<{ sum: number; count: number }>
+  seed0WinBuckets: Array<{ count: number; sum: number; actual: number }>
+  seed0RocPairs: Array<{
+    name: string
+    event: string
+    season: number
+    prob: number
+    actual: number
+    elo: number
+  }>
+  bootstrapPairs: BootstrapPair[]
+  seed0PlayerTracker: Array<
+    Array<{ name: string; season: number; kind: EventKind; prob: number; won: boolean }>
+  >
+  winProbabilities: WinProbEntry[]
+  clinchHistory: ClinchEntry[]
+  safeAudit: SafeEntry[]
+}
+
+// ── R2 ────────────────────────────────────────────────────────────────────────
 
 const r2 = new S3Client({
   region: 'auto',
@@ -132,169 +174,310 @@ async function loadEvents(): Promise<{ kind: EventKind; season: number; data: Ev
     .sort((a, b) => a.season - b.season || a.kind.localeCompare(b.kind))
 }
 
-describe('LCQ/MSS Backtest', async () => {
-  for (const { kind, season, data } of await loadEvents()) {
-    describe(`${kind.toUpperCase()} S${season}`, () => {
-      const finalState = computeHistoricalData(data, 10)
-      const finalTruthMap = new Map(finalState.brackets.map((b) => [b.uuid, b]))
+// ── Core accumulation ─────────────────────────────────────────────────────────
 
-      for (let s = 0; s < 10; s++) {
-        it(`Seed ${s} → ${s + 1}`, () => {
-          const state = computeHistoricalData(data, s)
-          const odds = computePlayerOdds(state)
+function runBacktest(
+  events: { kind: EventKind; season: number; data: EventContext }[],
+): BacktestResults {
+  let totalPredictions = 0
+  let brierScoreSum = 0
+  let missingTruthCount = 0
+  let clinchViolations = 0
+  let safeViolations = 0
+  let pointsDiscrepancies = 0
+  let totalClinchSlack = 0
+  let clinchSlackMeasurements = 0
+  let seed0WinBrierSum = 0
+  let seed0TotalPredictions = 0
+  let maxObservedShift = 0
+  let stabilityViolations = 0
 
-          const oddsB = computePlayerOdds(state)
-          for (const [uuid, p] of Object.entries(odds)) {
-            if (oddsB[uuid]) {
-              const shift = Math.abs(p.survivalProbability - oddsB[uuid].survivalProbability)
-              if (shift > maxObservedShift) maxObservedShift = shift
+  const stepBuckets = Array.from({ length: 10 }, () => ({ count: 0, sum: 0, actual: 0 }))
+  const seedBrierData = Array.from({ length: 10 }, () => ({ sum: 0, count: 0 }))
+  const seed0WinBuckets = Array.from({ length: 10 }, () => ({ count: 0, sum: 0, actual: 0 }))
+  const seed0RocPairs: BacktestResults['seed0RocPairs'] = []
+  const bootstrapPairs: BootstrapPair[] = []
+  const seed0PlayerTracker: BacktestResults['seed0PlayerTracker'] = Array.from(
+    { length: 10 },
+    () => [],
+  )
+  const winProbabilities: WinProbEntry[] = []
+  const clinchHistory: ClinchEntry[] = []
+  const safeAudit: SafeEntry[] = []
 
-              if (shift > VARIANCE_BOUND) {
-                stabilityViolations++
-                console.warn(
-                  `[MC Stability] ${uuid} shifted by ${(shift * 100).toFixed(2)}% (limit: ${(VARIANCE_BOUND * 100).toFixed(2)}%)`,
-                )
-              }
-            }
-          }
+  for (const { kind, season, data } of events) {
+    const nicknameMap = new Map(data.players.map((p) => [p.uuid, p.nickname]))
+    const finalState = computeHistoricalData(data, 10)
+    const finalTruthMap = new Map(finalState.brackets.map((b) => [b.uuid, b]))
 
-          const nextCutSeed = [3, 5, 7, 8, 9, 10].find((c) => c > s) ?? 10
-          const truthAtCut = computeHistoricalData(data, nextCutSeed)
-          const truthMap = new Map(truthAtCut.brackets.map((b) => [b.uuid, b]))
-          const aliveTruth = truthAtCut.brackets
-            .filter((b) => !b.eliminated)
-            .sort((a, b) => b.point - a.point)
-          const actualCutThreshold = aliveTruth[aliveTruth.length - 1]?.point ?? 0
+    for (let s = 0; s < 10; s++) {
+      const state = computeHistoricalData(data, s)
+      const odds = computePlayerOdds(state)
 
-          for (const [uuid, p] of Object.entries(odds)) {
-            const truth = truthMap.get(uuid)
-            if (!truth) continue
-
-            // ── Seed 0 win prediction metrics ──
-            if (s === 0) {
-              const finalTruth = finalTruthMap.get(uuid)
-              const actuallyWon = finalTruth && !finalTruth.eliminated ? 1 : 0
-              const bucket = Math.min(Math.floor(p.winProbability * 10), 9)
-              seed0WinBuckets[bucket].count++
-              seed0WinBuckets[bucket].sum += p.winProbability
-              seed0WinBuckets[bucket].actual += actuallyWon
-              seed0WinBrierSum += (p.winProbability - actuallyWon) ** 2
-              seed0TotalPredictions++
-
-              const player = data.players.find((pl) => pl.uuid === uuid)
-              const elo = player?.eloRate ?? 1700
-              seed0RocPairs.push({
-                name: player?.nickname ?? uuid,
-                event: kind.toUpperCase(),
-                season,
-                prob: p.winProbability,
-                actual: actuallyWon,
-                elo,
-              })
-              bootstrapPairs.push({ custom: p.winProbability, baseline: elo, actual: actuallyWon })
-              seed0PlayerTracker[bucket].push({
-                name: player?.nickname ?? uuid,
-                season,
-                kind,
-                prob: p.winProbability,
-                won: actuallyWon === 1,
-              })
-            }
-
-            // ── Point calculation audit ──
-            if (s === 9) {
-              const raw = data.brackets.find((b) => b.uuid === uuid)!
-              if (calculatePoints(raw, 10) !== raw.point) pointsDiscrepancies++
-            }
-
-            // ── Clinch audit ──
-            if (p.clinchScore !== null && typeof p.clinchPlace === 'number') {
-              const completion = data.brackets.find((b) => b.uuid === uuid)?.completions[s]
-              if (completion && completion.place <= p.clinchPlace && truth.eliminated)
-                clinchViolations++
-              if (p.clinchScore > 0) {
-                const playerAtS = state.brackets.find((b) => b.uuid === uuid)!
-                totalClinchSlack +=
-                  p.clinchScore - Math.max(0, actualCutThreshold - playerAtS.point)
-                clinchSlackMeasurements++
-              }
-            }
-
-            // ── Safe audit ──
-            if ((p.status === 'safe' || p.status === 'qualified') && truth.eliminated) {
-              safeViolations++
-              expect(truth.eliminated, `safe violation: ${uuid} eliminated while marked safe`).toBe(
-                false,
-              )
-            }
-
-            // ── Survival Brier ──
-            const actualSurvival = truth.eliminated ? 0 : 1
-            const bucket = Math.min(Math.floor(p.survivalProbability * 10), 9)
-            stepBuckets[bucket].count++
-            stepBuckets[bucket].sum += p.survivalProbability
-            stepBuckets[bucket].actual += actualSurvival
-            brierScoreSum += (p.survivalProbability - actualSurvival) ** 2
-            totalPredictions++
-            seedBrierData[s].sum += (p.survivalProbability - actualSurvival) ** 2
-            seedBrierData[s].count++
-          }
-        }, 0)
+      const oddsB = computePlayerOdds(state)
+      for (const [uuid, p] of Object.entries(odds)) {
+        if (oddsB[uuid]) {
+          const shift = Math.abs(p.survivalProbability - oddsB[uuid].survivalProbability)
+          if (shift > maxObservedShift) maxObservedShift = shift
+          if (shift > VARIANCE_BOUND) stabilityViolations++
+        }
       }
-    })
+
+      const nextCutSeed = [3, 5, 7, 8, 9, 10].find((c) => c > s) ?? 10
+      const truthAtCut = computeHistoricalData(data, nextCutSeed)
+      const truthMap = new Map(truthAtCut.brackets.map((b) => [b.uuid, b]))
+      const aliveTruth = truthAtCut.brackets
+        .filter((b) => !b.eliminated)
+        .sort((a, b) => b.point - a.point)
+      const actualCutThreshold = aliveTruth[aliveTruth.length - 1]?.point ?? 0
+
+      for (const [uuid, p] of Object.entries(odds)) {
+        const truth = truthMap.get(uuid)
+        if (!truth) {
+          missingTruthCount++
+          continue
+        }
+
+        const nickname = nicknameMap.get(uuid) ?? uuid
+
+        // ── Seed 0 win prediction metrics ──
+        if (s === 0) {
+          const finalTruth = finalTruthMap.get(uuid)
+          const actuallyWon = finalTruth && !finalTruth.eliminated ? 1 : 0
+          const bucket = Math.min(Math.floor(p.winProbability * 10), 9)
+          seed0WinBuckets[bucket].count++
+          seed0WinBuckets[bucket].sum += p.winProbability
+          seed0WinBuckets[bucket].actual += actuallyWon
+          seed0WinBrierSum += (p.winProbability - actuallyWon) ** 2
+          seed0TotalPredictions++
+
+          const player = data.players.find((pl) => pl.uuid === uuid)
+          const elo = player?.eloRate ?? 1700
+          seed0RocPairs.push({
+            name: nickname,
+            event: kind.toUpperCase(),
+            season,
+            prob: p.winProbability,
+            actual: actuallyWon,
+            elo,
+          })
+          bootstrapPairs.push({ custom: p.winProbability, baseline: elo, actual: actuallyWon })
+          seed0PlayerTracker[bucket].push({
+            name: nickname,
+            season,
+            kind,
+            prob: p.winProbability,
+            won: actuallyWon === 1,
+          })
+          winProbabilities.push({
+            season,
+            event: kind.toUpperCase(),
+            uuid,
+            nickname,
+            elo,
+            winProb: p.winProbability,
+            won: actuallyWon === 1,
+          })
+        }
+
+        // ── Point calculation audit ──
+        if (s === 9) {
+          const raw = data.brackets.find((b) => b.uuid === uuid)!
+          if (calculatePoints(raw, 10) !== raw.point) pointsDiscrepancies++
+        }
+
+        // ── Clinch audit ──
+        if (p.clinchScore !== null) {
+          const completion = data.brackets.find((b) => b.uuid === uuid)?.completions[s]
+          const actualPlace = completion?.place ?? null
+          const survived = !truth.eliminated
+
+          clinchHistory.push({
+            season,
+            event: kind.toUpperCase(),
+            uuid,
+            nickname,
+            seed: s,
+            clinchScore: p.clinchScore,
+            clinchPlace: p.clinchPlace as number | 'DNF',
+            actualPlace,
+            survived,
+          })
+
+          if (
+            typeof p.clinchPlace === 'number' &&
+            completion &&
+            completion.place <= p.clinchPlace &&
+            truth.eliminated
+          ) {
+            clinchViolations++
+          }
+          if (p.clinchScore > 0) {
+            const playerAtS = state.brackets.find((b) => b.uuid === uuid)!
+            totalClinchSlack += p.clinchScore - Math.max(0, actualCutThreshold - playerAtS.point)
+            clinchSlackMeasurements++
+          }
+        }
+
+        // ── Safe audit ──
+        if (p.status === 'safe' || p.status === 'qualified') {
+          safeAudit.push({
+            season,
+            event: kind.toUpperCase(),
+            uuid,
+            nickname,
+            seed: s,
+            status: p.status,
+            survived: !truth.eliminated,
+          })
+          if (truth.eliminated) safeViolations++
+        }
+
+        // ── Survival Brier ──
+        const playerAtCurrentSeed = state.brackets.find((b) => b.uuid === uuid)
+
+        if (playerAtCurrentSeed?.eliminated) {
+          continue
+        }
+
+        const actualSurvival = truth.eliminated ? 0 : 1
+        const bucket = Math.min(Math.floor(p.survivalProbability * 10), 9)
+        stepBuckets[bucket].count++
+        stepBuckets[bucket].sum += p.survivalProbability
+        stepBuckets[bucket].actual += actualSurvival
+        brierScoreSum += (p.survivalProbability - actualSurvival) ** 2
+        totalPredictions++
+        seedBrierData[s].sum += (p.survivalProbability - actualSurvival) ** 2
+        seedBrierData[s].count++
+      }
+    }
   }
 
-  afterAll(() => {
-    // ── Deterministic audit ──
-    console.log(
-      '\n' +
-        dataTable(
-          ['Check', 'Result', 'Status'],
-          [
-            ['Clinch Violations', clinchViolations, clinchViolations === 0 ? 'PASSED' : 'FAILED'],
-            ['Safe Violations', safeViolations, safeViolations === 0 ? 'PASSED' : 'FAILED'],
-            [
-              'Point Discrepancies',
-              pointsDiscrepancies,
-              pointsDiscrepancies === 0 ? 'CLEAN' : 'ERROR',
-            ],
-            [
-              'Avg Clinch Slack',
-              `${clinchSlackMeasurements > 0 ? (totalClinchSlack / clinchSlackMeasurements).toFixed(2) : 0} pts`,
-              '',
-            ],
-            [
-              'Max MC Shift',
-              `${(maxObservedShift * 100).toFixed(2)}%`,
-              maxObservedShift <= VARIANCE_BOUND ? 'PASSED' : 'WARN',
-            ],
-            [
-              'MC Stability Vio.',
-              stabilityViolations,
-              stabilityViolations === 0 ? 'PASSED' : 'FAILED',
-            ],
-          ],
-        ),
+  return {
+    totalPredictions,
+    brierScoreSum,
+    missingTruthCount,
+    clinchViolations,
+    safeViolations,
+    pointsDiscrepancies,
+    totalClinchSlack,
+    clinchSlackMeasurements,
+    seed0WinBrierSum,
+    seed0TotalPredictions,
+    maxObservedShift,
+    stabilityViolations,
+    stepBuckets,
+    seedBrierData,
+    seed0WinBuckets,
+    seed0RocPairs,
+    bootstrapPairs,
+    seed0PlayerTracker,
+    winProbabilities,
+    clinchHistory,
+    safeAudit,
+  }
+}
+
+// ── Test ──────────────────────────────────────────────────────────────────────
+
+const OUTPUT_DIR = path.join(__dirname, '../../../apps/web/public/method')
+
+describe('LCQ/MSS Backtest', () => {
+  it('historical calibration', async () => {
+    const events = await loadEvents()
+    const r = runBacktest(events)
+
+    // ── Data integrity — must pass before model metrics are meaningful ──
+    expect(r.totalPredictions, 'No predictions — R2 data missing?').toBeGreaterThan(0)
+    expect(r.seed0TotalPredictions, 'Seed-0 win tracking empty').toBeGreaterThan(0)
+    expect(r.missingTruthCount, 'Players missing from truth map — UUID mismatch?').toBe(0)
+    expect(r.pointsDiscrepancies, 'calculatePoints mismatch with raw bracket data').toBe(0)
+
+    // ── Internal consistency — catches double-counts or missed players ──
+    const seedBrierTotal = r.seedBrierData.reduce((s, d) => s + d.count, 0)
+    expect(seedBrierTotal, 'perSeedBrier counts do not sum to totalPredictions').toBe(
+      r.totalPredictions,
     )
 
+    const bucketTotal = r.stepBuckets.reduce((s, b) => s + b.count, 0)
+    expect(bucketTotal, 'calibrationBucket counts do not sum to totalPredictions').toBe(
+      r.totalPredictions,
+    )
+
+    const seedBrierSumTotal = r.seedBrierData.reduce((s, d) => s + d.sum, 0)
+    expect(
+      Math.abs(seedBrierSumTotal - r.brierScoreSum),
+      'perSeedBrier sums diverge from overall brierScoreSum',
+    ).toBeLessThan(1e-9)
+
+    // ── Model quality ──
+    expect(
+      r.brierScoreSum / r.totalPredictions,
+      'Survival Brier worse than random baseline (0.25)',
+    ).toBeLessThan(0.25)
+    expect(r.clinchViolations, 'No clinch violations').toBe(0)
+    expect(r.safeViolations, 'No safe violations').toBe(0)
+    expect(r.stabilityViolations, `MC shift exceeded ${(VARIANCE_BOUND * 100).toFixed(2)}%`).toBe(0)
+
     // ── AUC + bootstrap ──
-    const customAuc = rocAuc(seed0RocPairs)
-    const baselineAuc = rocAuc(bootstrapPairs.map((p) => ({ prob: p.baseline, actual: p.actual })))
+    const customAuc = rocAuc(r.seed0RocPairs)
+    const baselineAuc = rocAuc(
+      r.bootstrapPairs.map((p) => ({ prob: p.baseline, actual: p.actual })),
+    )
 
     const diffs: number[] = []
     let baselineBetter = 0
     for (let i = 0; i < 1000; i++) {
       const sample = Array.from(
-        { length: bootstrapPairs.length },
-        () => bootstrapPairs[Math.floor(Math.random() * bootstrapPairs.length)],
+        { length: r.bootstrapPairs.length },
+        () => r.bootstrapPairs[Math.floor(Math.random() * r.bootstrapPairs.length)],
       )
       const d =
-        rocAuc(sample.map((r) => ({ prob: r.custom, actual: r.actual }))) -
-        rocAuc(sample.map((r) => ({ prob: r.baseline, actual: r.actual })))
+        rocAuc(sample.map((p) => ({ prob: p.custom, actual: p.actual }))) -
+        rocAuc(sample.map((p) => ({ prob: p.baseline, actual: p.actual })))
       diffs.push(d)
       if (d <= 0) baselineBetter++
     }
     diffs.sort((a, b) => a - b)
+
+    expect(customAuc, 'AUC must exceed 0.88').toBeGreaterThan(0.88)
+
+    // ── Logging ──
+    console.log(
+      '\n' +
+        dataTable(
+          ['Check', 'Result', 'Status'],
+          [
+            [
+              'Clinch Violations',
+              r.clinchViolations,
+              r.clinchViolations === 0 ? 'PASSED' : 'FAILED',
+            ],
+            ['Safe Violations', r.safeViolations, r.safeViolations === 0 ? 'PASSED' : 'FAILED'],
+            [
+              'Point Discrepancies',
+              r.pointsDiscrepancies,
+              r.pointsDiscrepancies === 0 ? 'CLEAN' : 'ERROR',
+            ],
+            ['Missing Truth', r.missingTruthCount, r.missingTruthCount === 0 ? 'CLEAN' : 'ERROR'],
+            [
+              'Avg Clinch Slack',
+              `${r.clinchSlackMeasurements > 0 ? (r.totalClinchSlack / r.clinchSlackMeasurements).toFixed(2) : 0} pts`,
+              '',
+            ],
+            [
+              'Max MC Shift',
+              `${(r.maxObservedShift * 100).toFixed(2)}%`,
+              r.maxObservedShift <= VARIANCE_BOUND ? 'PASSED' : 'WARN',
+            ],
+            [
+              'MC Stability Vio.',
+              r.stabilityViolations,
+              r.stabilityViolations === 0 ? 'PASSED' : 'FAILED',
+            ],
+          ],
+        ),
+    )
 
     console.log(
       '\n' +
@@ -304,19 +487,18 @@ describe('LCQ/MSS Backtest', async () => {
             ['Custom AUC', customAuc.toFixed(4)],
             ['Baseline AUC', baselineAuc.toFixed(4)],
             ['Lift', delta(customAuc - baselineAuc)],
-            ['Seed 0 Win Brier', (seed0WinBrierSum / seed0TotalPredictions).toFixed(4)],
+            ['Seed 0 Win Brier', (r.seed0WinBrierSum / r.seed0TotalPredictions).toFixed(4)],
             ['p-value', (baselineBetter / 1000).toFixed(4)],
             ['95% CI Lift', `[${diffs[25].toFixed(4)}, ${diffs[975].toFixed(4)}]`],
           ],
         ),
     )
 
-    // ── Calibration table ──
     console.log(
       '\n' +
         dataTable(
           ['Range', 'Expected', 'Actual', 'Diff', 'Sample'],
-          stepBuckets.map((b, i) => [
+          r.stepBuckets.map((b, i) => [
             `${i * 10}-${(i + 1) * 10}%`,
             pct(b.sum / b.count),
             pct(b.actual / b.count),
@@ -326,25 +508,23 @@ describe('LCQ/MSS Backtest', async () => {
         ),
     )
 
-    // ── Brier per seed ──
     console.log(
       '\n' +
         dataTable(
           ['Seed', 'Brier Score', 'Sample'],
-          seedBrierData.map((d, i) => [
+          r.seedBrierData.map((d, i) => [
             `${i} → ${i + 1}`,
             d.count > 0 ? (d.sum / d.count).toFixed(4) : 'N/A',
             d.count,
           ]),
         ),
     )
-    console.log(`Overall Survival Brier: ${(brierScoreSum / totalPredictions).toFixed(4)}`)
+    console.log(`Overall Survival Brier: ${(r.brierScoreSum / r.totalPredictions).toFixed(4)}`)
 
-    // ── Per-season expert analysis ──
-    const seasons = [...new Set(seed0RocPairs.map((p) => p.season))].sort((a, b) => a - b)
-    const kinds = [...new Set(seed0RocPairs.map((p) => p.event.toLowerCase() as EventKind))]
+    const seasons = [...new Set(r.seed0RocPairs.map((p) => p.season))].sort((a, b) => a - b)
+    const kinds = [...new Set(r.seed0RocPairs.map((p) => p.event.toLowerCase() as EventKind))]
     for (const s of seasons) {
-      const seasonPairs = seed0RocPairs.filter((p) => p.season === s)
+      const seasonPairs = r.seed0RocPairs.filter((p) => p.season === s)
       console.log(
         '\n' +
           dataTable(
@@ -364,13 +544,39 @@ describe('LCQ/MSS Backtest', async () => {
       )
     }
 
-    // ── Hard assertions ──
-    expect(customAuc, 'AUC must exceed 0.88').toBeGreaterThan(0.88)
-    expect(clinchViolations, 'No clinch violations').toBe(0)
-    expect(safeViolations, 'No safe violations').toBe(0)
-    expect(
-      stabilityViolations,
-      `MC shift exceeded 3-sigma (${(VARIANCE_BOUND * 100).toFixed(2)}%)`,
-    ).toBe(0)
-  })
+    // ── Write JSON output ──
+    const output = {
+      generatedAt: new Date().toISOString(),
+      metrics: {
+        customAuc,
+        baselineAuc,
+        lift: customAuc - baselineAuc,
+        pValue: baselineBetter / 1000,
+        ci95: [diffs[25], diffs[975]],
+        survivalBrier: r.brierScoreSum / r.totalPredictions,
+        seed0WinBrier: r.seed0WinBrierSum / r.seed0TotalPredictions,
+        totalPredictions: r.totalPredictions,
+        avgClinchSlack:
+          r.clinchSlackMeasurements > 0 ? r.totalClinchSlack / r.clinchSlackMeasurements : null,
+        maxMcShift: r.maxObservedShift,
+        calibrationBuckets: r.stepBuckets.map((b, i) => ({
+          range: `${i * 10}-${(i + 1) * 10}%`,
+          expected: b.count > 0 ? b.sum / b.count : null,
+          actual: b.count > 0 ? b.actual / b.count : null,
+          count: b.count,
+        })),
+        perSeedBrier: r.seedBrierData.map((d, i) => ({
+          seed: i,
+          brier: d.count > 0 ? d.sum / d.count : null,
+          count: d.count,
+        })),
+      },
+      winProbabilities: r.winProbabilities,
+      clinchHistory: r.clinchHistory,
+      safeAudit: r.safeAudit,
+    }
+
+    fs.mkdirSync(OUTPUT_DIR, { recursive: true })
+    fs.writeFileSync(path.join(OUTPUT_DIR, 'backtest.json'), JSON.stringify(output, null, 2))
+  }, 0)
 })

@@ -1,19 +1,13 @@
 import type { PlayerView } from '@endereye/core'
 import type { OverrideMap } from '@endereye/core'
+import { mssPhasePoints } from '@endereye/core'
 import type { Status } from '@/components/ui'
 import type { StandingsRowData, PillData, OverrideEntry } from '@/app/views/StandingsRow'
 
 export { type StandingsRowData, type PillData, type OverrideEntry }
+export { mssPhasePoints }
 
 const CUT_SEEDS = [3, 5, 7, 8, 9, 10]
-
-export function mssPhasePoints(rank: number): number {
-  if (rank <= 4) return 25
-  if (rank <= 6) return 20
-  if (rank <= 8) return 15
-  if (rank <= 10) return 10
-  return 0
-}
 
 export function survivalPct(p: number): number {
   return Math.round(p * 100)

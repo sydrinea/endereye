@@ -1,6 +1,14 @@
 import type { EliminationCut } from './config'
 import type { SimPlayer } from './player-model'
 
+export function mssPhasePoints(rank: number): number {
+  if (rank <= 4) return 25
+  if (rank <= 6) return 20
+  if (rank <= 8) return 15
+  if (rank <= 10) return 10
+  return 0
+}
+
 export function getAvailableScores(aliveCount: number): number[] {
   const N = Math.min(aliveCount, 24)
   return Array.from({ length: aliveCount }, (_, i) => {

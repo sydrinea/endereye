@@ -206,7 +206,7 @@ export function SeedResultsGrid({ rows, seeds }: Props) {
           style={{
             ...TOOLTIP_STYLE,
             position: 'fixed',
-            left: tooltip.x + 12,
+            left: tooltip.x - 150,
             top: tooltip.y - 10,
             zIndex: 50,
           }}

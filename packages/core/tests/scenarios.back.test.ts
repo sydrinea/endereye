@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { afterAll, describe, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import type { EventContext, EventPlayer } from '../lib/context/event'
 import type { EventKind } from '../lib/api/types'
@@ -125,127 +125,128 @@ interface ValidationResult {
   baseline: number
 }
 
-const allResults: ValidationResult[] = []
+interface ScenariosResults {
+  allResults: ValidationResult[]
+  threat: { hitRate: number; baseline: number; lift: number; n: number }
+  survival: { hitRate: number; baseline: number; lift: number; n: number }
+}
 
-describe('Scenario Path Backtest', { timeout: 600_000 }, async () => {
-  for (const { kind, season, data } of await loadEvents()) {
-    describe(`${kind.toUpperCase()} S${season}`, () => {
-      const qualifyCount = data.qualifyCount ?? QUALIFY_COUNT
-      const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
-      const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
-        cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
+// ── Core accumulation ─────────────────────────────────────────────────────────
+
+function runScenariosBacktest(
+  events: { kind: EventKind; season: number; data: EventContext }[],
+): ScenariosResults {
+  const allResults: ValidationResult[] = []
+
+  for (const { kind, season, data } of events) {
+    const qualifyCount = data.qualifyCount ?? QUALIFY_COUNT
+    const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
+    const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
+      cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
+    )
+    const nicknames = new Map(data.players.map((p) => [p.uuid, p.nickname]))
+
+    for (const cut of effectiveSchedule) {
+      const viewSeed = cut.afterSeed - 1
+      if (viewSeed < 0) continue
+
+      const state = computeHistoricalData(data, viewSeed)
+      const odds = computePlayerOdds(state)
+      const aliveBrackets = state.brackets.filter((b) => !b.eliminated)
+      const nAlive = aliveBrackets.length
+      if (nAlive < 4) continue
+
+      const cutState = computeHistoricalData(data, cut.afterSeed)
+      const eliminatedAtCut = new Set(
+        cutState.brackets
+          .filter((b) => b.eliminated && aliveBrackets.some((a) => a.uuid === b.uuid))
+          .map((b) => b.uuid),
       )
 
-      const nicknames = new Map(data.players.map((p) => [p.uuid, p.nickname]))
+      const prepared = buildScenarioRecords(state)
+      if (!prepared) continue
 
-      for (const cut of effectiveSchedule) {
-        // Check the state at the seed immediately before this cut.
-        // Scenarios predict placements in the very next seed (currentRound),
-        // so viewSeed = cut.afterSeed - 1 gives a direct 1-seed lookahead.
-        const viewSeed = cut.afterSeed - 1
-        if (viewSeed < 0) continue
+      for (const bracket of aliveBrackets) {
+        const { uuid } = bracket
+        const survP = odds[uuid]?.survivalProbability ?? 0
+        const wasEliminated = eliminatedAtCut.has(uuid)
 
-        it(`Cut after seed ${cut.afterSeed}`, () => {
-          const state = computeHistoricalData(data, viewSeed)
-          const odds = computePlayerOdds(state)
-          const aliveBrackets = state.brackets.filter((b) => !b.eliminated)
-          const nAlive = aliveBrackets.length
-          if (nAlive < 4) return
+        // ── Threat validation ──────────────────────────────────────────────
+        if (survP > THREAT_SURPRISE_THRESHOLD && wasEliminated) {
+          const { scenarios } = deriveScenariosFromRecords(uuid, prepared, { threatMode: true })
+          if (scenarios.length === 0 || scenarios[0].constraints.length === 0) continue
+          const top = scenarios[0].constraints[0]
+          if (top.maxPlace == null) continue
+          const actualPlace = data.brackets.find((b) => b.uuid === top.uuid)?.completions[viewSeed]
+            ?.place
+          if (actualPlace == null) continue
+          allResults.push({
+            type: 'threat',
+            event: kind.toUpperCase(),
+            season,
+            cutAfterSeed: cut.afterSeed,
+            playerNickname: nicknames.get(uuid) ?? uuid,
+            survP,
+            constraintNickname: nicknames.get(top.uuid) ?? top.uuid,
+            constraintBound: top.maxPlace,
+            actualPlace,
+            nAlive,
+            hit: actualPlace <= top.maxPlace,
+            baseline: top.maxPlace / nAlive,
+          })
+        }
 
-          // Who was alive before this cut but eliminated by it?
-          const cutState = computeHistoricalData(data, cut.afterSeed)
-          const eliminatedAtCut = new Set(
-            cutState.brackets
-              .filter((b) => b.eliminated && aliveBrackets.some((a) => a.uuid === b.uuid))
-              .map((b) => b.uuid),
-          )
-
-          const prepared = buildScenarioRecords(state)
-          if (!prepared) return
-
-          for (const bracket of aliveBrackets) {
-            const { uuid } = bracket
-            const survP = odds[uuid]?.survivalProbability ?? 0
-            const wasEliminated = eliminatedAtCut.has(uuid)
-
-            // ── Threat validation ──────────────────────────────────────────
-            // Model expected this player to survive; they didn't.
-            // Did the top threat path's leading constraint materialize?
-            if (survP > THREAT_SURPRISE_THRESHOLD && wasEliminated) {
-              const { scenarios } = deriveScenariosFromRecords(uuid, prepared, { threatMode: true })
-              if (scenarios.length === 0 || scenarios[0].constraints.length === 0) continue
-              const top = scenarios[0].constraints[0]
-              if (top.maxPlace == null) continue
-              // completions is 0-indexed: index viewSeed = the next seed's result
-              const actualPlace = data.brackets.find((b) => b.uuid === top.uuid)?.completions[
-                viewSeed
-              ]?.place
-              if (actualPlace == null) continue
-              allResults.push({
-                type: 'threat',
-                event: kind.toUpperCase(),
-                season,
-                cutAfterSeed: cut.afterSeed,
-                playerNickname: nicknames.get(uuid) ?? uuid,
-                survP,
-                constraintNickname: nicknames.get(top.uuid) ?? top.uuid,
-                constraintBound: top.maxPlace,
-                actualPlace,
-                nAlive,
-                hit: actualPlace <= top.maxPlace,
-                baseline: top.maxPlace / nAlive,
-              })
-            }
-
-            // ── Survival validation ────────────────────────────────────────
-            // Model expected this player to be eliminated; they survived.
-            // Did the top survival path's leading constraint materialize?
-            if (survP < SURVIVAL_CLUTCH_THRESHOLD && !wasEliminated) {
-              const { scenarios } = deriveScenariosFromRecords(uuid, prepared, {
-                threatMode: false,
-              })
-              if (scenarios.length === 0 || scenarios[0].constraints.length === 0) continue
-              const top = scenarios[0].constraints[0]
-              const actualPlace = data.brackets.find((b) => b.uuid === top.uuid)?.completions[
-                viewSeed
-              ]?.place
-              if (actualPlace == null) continue
-              allResults.push({
-                type: 'survival',
-                event: kind.toUpperCase(),
-                season,
-                cutAfterSeed: cut.afterSeed,
-                playerNickname: nicknames.get(uuid) ?? uuid,
-                survP,
-                constraintNickname: nicknames.get(top.uuid) ?? top.uuid,
-                constraintBound: top.minPlace,
-                actualPlace,
-                nAlive,
-                // survival constraint: opponent finishes at minPlace or worse (higher number)
-                hit: actualPlace >= top.minPlace,
-                baseline: (nAlive - top.minPlace + 1) / nAlive,
-              })
-            }
-          }
-        })
+        // ── Survival validation ────────────────────────────────────────────
+        if (survP < SURVIVAL_CLUTCH_THRESHOLD && !wasEliminated) {
+          const { scenarios } = deriveScenariosFromRecords(uuid, prepared, { threatMode: false })
+          if (scenarios.length === 0 || scenarios[0].constraints.length === 0) continue
+          const top = scenarios[0].constraints[0]
+          const actualPlace = data.brackets.find((b) => b.uuid === top.uuid)?.completions[viewSeed]
+            ?.place
+          if (actualPlace == null) continue
+          allResults.push({
+            type: 'survival',
+            event: kind.toUpperCase(),
+            season,
+            cutAfterSeed: cut.afterSeed,
+            playerNickname: nicknames.get(uuid) ?? uuid,
+            survP,
+            constraintNickname: nicknames.get(top.uuid) ?? top.uuid,
+            constraintBound: top.minPlace,
+            actualPlace,
+            nAlive,
+            hit: actualPlace >= top.minPlace,
+            baseline: (nAlive - top.minPlace + 1) / nAlive,
+          })
+        }
       }
-    })
+    }
   }
 
-  afterAll(() => {
-    const threatResults = allResults.filter((r) => r.type === 'threat')
-    const survivalResults = allResults.filter((r) => r.type === 'survival')
+  function summarize(rows: ValidationResult[]) {
+    if (rows.length === 0) return { hitRate: 0, baseline: 0, lift: 0, n: 0 }
+    const hitRate = rows.filter((r) => r.hit).length / rows.length
+    const baseline = rows.reduce((s, r) => s + r.baseline, 0) / rows.length
+    return { hitRate, baseline, lift: hitRate - baseline, n: rows.length }
+  }
 
-    function summarize(rows: ValidationResult[]) {
-      if (rows.length === 0) return { hitRate: 0, baseline: 0, lift: 0, n: 0 }
-      const hitRate = rows.filter((r) => r.hit).length / rows.length
-      const baseline = rows.reduce((s, r) => s + r.baseline, 0) / rows.length
-      return { hitRate, baseline, lift: hitRate - baseline, n: rows.length }
-    }
+  return {
+    allResults,
+    threat: summarize(allResults.filter((r) => r.type === 'threat')),
+    survival: summarize(allResults.filter((r) => r.type === 'survival')),
+  }
+}
 
-    const threat = summarize(threatResults)
-    const survival = summarize(survivalResults)
+// ── Test ──────────────────────────────────────────────────────────────────────
 
+const OUTPUT_DIR = path.join(__dirname, '../../../apps/web/public/method')
+
+describe('Scenario Path Backtest', { timeout: 600_000 }, () => {
+  it('scenario path accuracy', async () => {
+    const events = await loadEvents()
+    const r = runScenariosBacktest(events)
+
+    // ── Logging ──
     console.log(
       '\n' +
         dataTable(
@@ -253,43 +254,48 @@ describe('Scenario Path Backtest', { timeout: 600_000 }, async () => {
           [
             [
               'Threat (surprise elim)',
-              pct(threat.hitRate),
-              pct(threat.baseline),
-              delta(threat.lift),
-              threat.n,
+              pct(r.threat.hitRate),
+              pct(r.threat.baseline),
+              delta(r.threat.lift),
+              r.threat.n,
             ],
             [
               'Survival (clutch surv)',
-              pct(survival.hitRate),
-              pct(survival.baseline),
-              delta(survival.lift),
-              survival.n,
+              pct(r.survival.hitRate),
+              pct(r.survival.baseline),
+              delta(r.survival.lift),
+              r.survival.n,
             ],
           ],
         ),
     )
 
-    // Per-event breakdown
-    const events = [...new Set(allResults.map((r) => `${r.event} S${r.season}`))].sort()
+    const events_ = [...new Set(r.allResults.map((res) => `${res.event} S${res.season}`))].sort()
     console.log(
       '\n' +
         dataTable(
           ['Event', 'Type', 'Hit rate', 'Baseline', 'Lift', 'n'],
-          events.flatMap((ev) => {
+          events_.flatMap((ev) => {
             const [evType, evSeason] = ev.split(' S')
-            const rows = allResults.filter(
-              (r) => r.event === evType && r.season === Number(evSeason),
+            const rows = r.allResults.filter(
+              (res) => res.event === evType && res.season === Number(evSeason),
             )
             return (['threat', 'survival'] as const).map((t) => {
-              const s = summarize(rows.filter((r) => r.type === t))
+              const s = (() => {
+                const filtered = rows.filter((res) => res.type === t)
+                if (filtered.length === 0) return { hitRate: 0, baseline: 0, lift: 0, n: 0 }
+                const hitRate = filtered.filter((res) => res.hit).length / filtered.length
+                const baseline =
+                  filtered.reduce((acc, res) => acc + res.baseline, 0) / filtered.length
+                return { hitRate, baseline, lift: hitRate - baseline, n: filtered.length }
+              })()
               return [ev, t, pct(s.hitRate), pct(s.baseline), delta(s.lift), s.n]
             })
           }),
         ),
     )
 
-    // Individual misses — most informative for debugging
-    const misses = allResults.filter((r) => !r.hit)
+    const misses = r.allResults.filter((res) => !res.hit)
     if (misses.length > 0) {
       console.log(
         '\n' +
@@ -297,31 +303,66 @@ describe('Scenario Path Backtest', { timeout: 600_000 }, async () => {
             ['Type', 'Event', 'Player', 'survP', 'Predicted', 'Actual', 'n'],
             misses
               .slice(0, 20)
-              .map((r) => [
-                r.type,
-                `${r.event} S${r.season} seed${r.cutAfterSeed}`,
-                r.playerNickname,
-                pct(r.survP),
-                r.type === 'threat'
-                  ? `${r.constraintNickname} ≤ ${r.constraintBound}`
-                  : `${r.constraintNickname} ≥ ${r.constraintBound}`,
-                r.actualPlace,
-                r.nAlive,
+              .map((res) => [
+                res.type,
+                `${res.event} S${res.season} seed${res.cutAfterSeed}`,
+                res.playerNickname,
+                pct(res.survP),
+                res.type === 'threat'
+                  ? `${res.constraintNickname} ≤ ${res.constraintBound}`
+                  : `${res.constraintNickname} ≥ ${res.constraintBound}`,
+                res.actualPlace,
+                res.nAlive,
               ]),
           ),
       )
     }
 
-    // Directional assertions — only fire if sample is large enough to be meaningful
-    if (threat.n >= 10) {
+    if (r.threat.n >= 10) {
       console.log(
-        `Threat path hit rate: ${pct(threat.hitRate)} vs baseline ${pct(threat.baseline)} (n=${threat.n})`,
+        `Threat path hit rate: ${pct(r.threat.hitRate)} vs baseline ${pct(r.threat.baseline)} (n=${r.threat.n})`,
+      )
+      expect(r.threat.hitRate, 'Threat hit rate must beat baseline').toBeGreaterThan(
+        r.threat.baseline,
       )
     }
-    if (survival.n >= 10) {
+    if (r.survival.n >= 10) {
       console.log(
-        `Survival path hit rate: ${pct(survival.hitRate)} vs baseline ${pct(survival.baseline)} (n=${survival.n})`,
+        `Survival path hit rate: ${pct(r.survival.hitRate)} vs baseline ${pct(r.survival.baseline)} (n=${r.survival.n})`,
+      )
+      expect(r.survival.hitRate, 'Survival hit rate must beat baseline').toBeGreaterThan(
+        r.survival.baseline,
       )
     }
+
+    // ── Write JSON output ──
+    const output = {
+      generatedAt: new Date().toISOString(),
+      threat: {
+        hitRate: r.threat.hitRate,
+        baseline: r.threat.baseline,
+        lift: r.threat.lift,
+        n: r.threat.n,
+      },
+      survival: {
+        hitRate: r.survival.hitRate,
+        baseline: r.survival.baseline,
+        lift: r.survival.lift,
+        n: r.survival.n,
+      },
+      misses: misses.map((res) => ({
+        type: res.type,
+        event: `${res.event} S${res.season} seed${res.cutAfterSeed}`,
+        playerNickname: res.playerNickname,
+        survP: res.survP,
+        constraintNickname: res.constraintNickname,
+        constraintBound: res.constraintBound,
+        actualPlace: res.actualPlace,
+        nAlive: res.nAlive,
+      })),
+    }
+
+    fs.mkdirSync(OUTPUT_DIR, { recursive: true })
+    fs.writeFileSync(path.join(OUTPUT_DIR, 'scenarios.json'), JSON.stringify(output, null, 2))
   })
 })

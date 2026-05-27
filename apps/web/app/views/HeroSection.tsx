@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
 import Ranked from '@/components/icons/Ranked'
 import { AnnouncementBanner } from '@/components/layout'
 import { Countdown } from './Countdown'
@@ -60,9 +59,9 @@ export function HeroSection({
           {hasPastEvents && (
             <Link
               href="/archive"
-              className="group inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mt-2"
+              className="group inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-400 transition-colors mt-2 underline"
             >
-              View Archives <ArrowRight size={14} />
+              View Archives
             </Link>
           )}
         </section>

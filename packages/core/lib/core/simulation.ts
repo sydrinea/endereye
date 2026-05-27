@@ -9,7 +9,7 @@ export {
   getPlayerVariance,
   randomGaussian,
 } from './player-model'
-export { getAvailableScores, applyElimination } from './scoring'
+export { getAvailableScores, applyElimination, mssPhasePoints } from './scoring'
 export {
   canStillWinDeterministic,
   isSafeAtNextCutDeterministic,

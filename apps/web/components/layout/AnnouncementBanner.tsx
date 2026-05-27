@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
 
 interface Props {
   label: string
@@ -18,10 +17,6 @@ export function AnnouncementBanner({ label, href }: Props) {
       >
         <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
         <span className="text-sm font-mono">{label}</span>
-        <ArrowRight
-          size={13}
-          className="shrink-0 transition-transform group-hover:translate-x-0.5"
-        />
       </Link>
     </div>
   )
