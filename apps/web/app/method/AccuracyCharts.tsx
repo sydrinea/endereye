@@ -28,6 +28,34 @@ const AXIS_PROPS = {
   stroke: '#3f3f46',
 }
 
+interface CustomBarCursorProps {
+  points?: { x: number; y: number }[]
+  width?: number
+  height?: number
+  top?: number
+
+  dataLength: number
+}
+
+const CustomBarCursor = (props: CustomBarCursorProps) => {
+  const { points, width, height, top, dataLength } = props
+  if (!points || !points.length || !width) return null
+
+  const bandWidth = width / dataLength
+  const x = points[0].x - bandWidth / 2
+
+  return (
+    <rect
+      x={x}
+      y={top}
+      width={bandWidth}
+      height={height}
+      fill="rgba(255,255,255,0.03)"
+      style={{ pointerEvents: 'none' }}
+    />
+  )
+}
+
 function CalibrationTooltip({
   active,
   payload,
@@ -63,7 +91,11 @@ export function CalibrationChart({ data }: { data: typeof backtest.metrics.calib
         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
         <XAxis dataKey="range" {...AXIS_PROPS} tick={{ fill: '#71717a', fontSize: 10 }} />
         <YAxis {...AXIS_PROPS} tickFormatter={(v) => `${v}%`} domain={[0, 100]} width={40} />
-        <Tooltip content={<CalibrationTooltip />} cursor={false} />
+
+        <Tooltip
+          content={<CalibrationTooltip />}
+          cursor={<CustomBarCursor dataLength={data.length} />}
+        />
 
         <Bar dataKey="predicted" name="Predicted" fill="#3f3f46" radius={[2, 2, 0, 0]} />
         <Bar dataKey="actual" name="Actual" radius={[2, 2, 0, 0]}>
@@ -133,7 +165,7 @@ export function ScenarioPathChart({ data }: { data: typeof scenarios }) {
         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
         <XAxis dataKey="label" {...AXIS_PROPS} />
         <YAxis {...AXIS_PROPS} tickFormatter={(v) => `${v}%`} domain={[0, 100]} width={40} />
-        <Tooltip content={<ScenarioTooltip />} cursor={false} />
+        <Tooltip content={<ScenarioTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
         <Bar dataKey="Random chance" fill="#3f3f46" radius={[2, 2, 0, 0]} />
         <Bar dataKey="Hit rate" fill="#60a5fa" radius={[2, 2, 0, 0]} />
       </BarChart>
