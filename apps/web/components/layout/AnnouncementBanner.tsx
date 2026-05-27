@@ -7,7 +7,7 @@ interface Props {
 
 export function AnnouncementBanner({ label, href }: Props) {
   return (
-    <div className="w-full flex justify-center px-4 pt-4">
+    <div className="w-full flex justify-center px-4 pt-4 pb-16 sm:pb-0">
       <Link
         href={href}
         className="group w-full max-w-md flex items-center justify-center gap-2 px-4 py-2.5
