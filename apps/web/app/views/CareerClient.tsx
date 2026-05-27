@@ -1,19 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Surface } from '@/components/layout'
-import type { CareerContext } from '@/lib/career-data'
-import type { CareerEventSlice, WorkerMessage } from './career.worker'
+import type { CareerEventSlice } from '@/lib/career-data'
 import { SurvivalOddsChart } from './charts/SurvivalOddsChart'
 import { ClinchSlackTrajectoryChart } from './charts/ClinchSlackTrajectoryChart'
 import { CareerResultsGrid } from './charts/CareerResultsGrid'
 import type { CareerResultRow } from './charts/CareerResultsGrid'
-import { Spinner } from './Spinner'
 
 const ALL_SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 const CUT_SEEDS = [3, 5, 7, 8, 9, 10]
 
-export function mean(values: number[]): number | null {
+function mean(values: number[]): number | null {
   if (values.length === 0) return null
   return values.reduce((a, b) => a + b) / values.length
 }
@@ -47,64 +43,7 @@ function StatChip({ label, value }: { label: string; value: string }) {
   )
 }
 
-interface Progress {
-  completed: number
-  total: number
-  label: string
-}
-
-export function CareerClient({ career }: { career: CareerContext }) {
-  const [slices, setSlices] = useState<CareerEventSlice[] | null>(null)
-  const [progress, setProgress] = useState<Progress | null>(null)
-
-  useEffect(() => {
-    window.scrollTo(0, 0)
-    const worker = new Worker(new URL('./career.worker.ts', import.meta.url))
-    worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
-      if (e.data.type === 'progress') {
-        setProgress(e.data)
-      } else {
-        setSlices(e.data.slices)
-        worker.terminate()
-      }
-    }
-    worker.postMessage({ uuid: career.uuid, events: career.events })
-    return () => worker.terminate()
-  }, [career])
-
-  if (!slices) {
-    return (
-      <Surface width="xl">
-        <div className="flex items-center justify-center py-20">
-          <div className="flex flex-col items-center gap-3 text-zinc-500">
-            <Spinner size={32} color="neutral" />
-            {progress ? (
-              <>
-                <span className="text-sm">{progress.label}</span>
-                <div className="flex gap-1">
-                  {Array.from({ length: progress.total }, (_, i) => (
-                    <div
-                      key={i}
-                      className="h-1 w-6 rounded-full transition-colors duration-300"
-                      style={{
-                        backgroundColor:
-                          i < progress.completed
-                            ? (career.events[i]?.color ?? '#71717a')
-                            : '#3f3f46',
-                      }}
-                    />
-                  ))}
-                </div>
-              </>
-            ) : (
-              <span className="text-sm">Preparing…</span>
-            )}
-          </div>
-        </div>
-      </Surface>
-    )
-  }
-
+export function CareerClient({ slices }: { slices: CareerEventSlice[] }) {
   const qualified = slices.filter((s) => s.qualified).length
   const rankedSlices = slices.filter((s) => s.finalRank !== null)
   const avgRank =
@@ -143,8 +82,8 @@ export function CareerClient({ career }: { career: CareerContext }) {
   }))
 
   return (
-    <Surface width="xl">
-      <div className="flex flex-col gap-8 pb-8">
+    <div className="text-zinc-400">
+      <div className="flex flex-col gap-8 pt-4 pb-12">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatChip label="Events" value={String(slices.length)} />
           <StatChip label="Qualified" value={`${qualified} / ${slices.length}`} />
@@ -185,6 +124,6 @@ export function CareerClient({ career }: { career: CareerContext }) {
           <CareerResultsGrid rows={careerRows} seeds={ALL_SEEDS} />
         </Section>
       </div>
-    </Surface>
+    </div>
   )
 }
