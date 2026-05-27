@@ -34,7 +34,9 @@ const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
 })
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://lcqtracker.vercel.app'
+const BASE_URL = process.env.VERCEL_URL
+  ? `https://${process.env.VERCEL_URL}`
+  : (process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000')
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
