@@ -15,7 +15,7 @@ import { dataTable, delta, pct } from '../lib/utils'
 import process from 'node:process'
 
 try {
-  const envPath = path.join(process.cwd(), '../../apps/web/.env.local')
+  const envPath = path.join(process.cwd(), 'apps/web/.env.local')
   const lines = fs.readFileSync(envPath, 'utf8').split('\n')
   for (const line of lines) {
     const trimmed = line.trim()
