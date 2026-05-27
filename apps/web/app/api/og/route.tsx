@@ -86,7 +86,7 @@ function RankedLogo({ size = 120 }: { size?: number }) {
   )
 }
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({ children, behavior }: { children: React.ReactNode; behavior: string }) {
   return (
     <div
       style={{
@@ -97,11 +97,38 @@ function Wrapper({ children }: { children: React.ReactNode }) {
         height: '100%',
         background: BG,
         padding: '56px 56px 40px 56px',
-        justifyContent: 'flex-end',
+        justifyContent: behavior,
         borderBottom: `3px solid ${GREEN}`,
       }}
     >
       {children}
+    </div>
+  )
+}
+
+function PlayerHeadGrid({ players, size = 64 }: { players: string[]; size?: number }) {
+  if (!players || players.length === 0) return null
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 16,
+        marginTop: 40,
+      }}
+    >
+      {players.map((name, idx) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={`${name}-${idx}`}
+          src={`https://mc-heads.net/avatar/${name}/${size}`}
+          width={size}
+          height={size}
+          style={{ borderRadius: 8, imageRendering: 'pixelated' }}
+          alt=""
+        />
+      ))}
     </div>
   )
 }
@@ -128,7 +155,7 @@ function LogoTitle({ title, fontSize = 64 }: { title: string; fontSize?: number 
 
 function DefaultTemplate() {
   return (
-    <Wrapper>
+    <Wrapper behavior="flex-end">
       <LogoTitle title="endereye" />
     </Wrapper>
   )
@@ -136,7 +163,7 @@ function DefaultTemplate() {
 
 function EventTemplate({ label }: { label: string }) {
   return (
-    <Wrapper>
+    <Wrapper behavior="flex-end">
       <LogoTitle title={label} fontSize={label.length > 30 ? 52 : 64} />
     </Wrapper>
   )
@@ -147,7 +174,7 @@ function PlayerTemplate({ name, eventCount }: { name: string; eventCount: string
   const eventLabel = count === 1 ? '1 event' : `${count} events`
 
   return (
-    <Wrapper>
+    <Wrapper behavior="flex-end">
       <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
         {name && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -192,10 +219,20 @@ function PlayerTemplate({ name, eventCount }: { name: string; eventCount: string
   )
 }
 
-function FinalistsTemplate() {
+function FinalistsTemplate({ players }: { players: string[] }) {
   return (
-    <Wrapper>
+    <Wrapper behavior="space-between">
+      <PlayerHeadGrid players={players} />
       <LogoTitle title="Finalist Results" />
+    </Wrapper>
+  )
+}
+
+function PlayersTemplate({ players }: { players: string[] }) {
+  return (
+    <Wrapper behavior="space-between">
+      <PlayerHeadGrid players={players} size={42} />
+      <LogoTitle title="Players" />
     </Wrapper>
   )
 }
@@ -204,8 +241,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const type = searchParams.get('type') ?? 'default'
 
+  const playersParam = searchParams.get('players') ?? ''
+  const players = playersParam ? playersParam.split(',').filter(Boolean) : []
+
   const monoText = new Set("endereye 's Career event events · 0123456789")
-  const displayText = new Set("endereye Finalist Results 's Career event events")
+
+  const displayText = new Set("endereye Finalist Results Players 's Career event events")
 
   if (type === 'event') {
     const label = searchParams.get('label') ?? ''
@@ -242,7 +283,9 @@ export async function GET(req: NextRequest) {
       />
     )
   } else if (type === 'finalists') {
-    jsx = <FinalistsTemplate />
+    jsx = <FinalistsTemplate players={players} />
+  } else if (type === 'players') {
+    jsx = <PlayersTemplate players={players} />
   } else {
     jsx = <DefaultTemplate />
   }
