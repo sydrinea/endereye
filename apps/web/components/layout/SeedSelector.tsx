@@ -13,14 +13,15 @@ export function SeedSelector({ seeds, currentSeed }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
+  const sortedSeeds = [...seeds].sort((a, b) => a - b)
   const options = [
-    ...seeds
-      .sort((a, b) => a - b)
+    ...sortedSeeds
+      .slice()
       .reverse()
       .map((s) => ({ value: String(s), label: `After Seed ${s}` })),
     { value: '0', label: 'Initial Rankings' },
   ]
-  const latestSeed = seeds[seeds.length - 1]
+  const latestSeed = sortedSeeds[sortedSeeds.length - 1]
 
   return (
     <div className="relative flex items-center gap-2">
