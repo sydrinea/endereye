@@ -206,7 +206,7 @@ function SeedEditor({
           next[p.uuid] = { ...(next[p.uuid] ?? {}), [seedKey]: inputVal }
         }
       }
-      const res = await saveOverridesAction(event.prefix, event.season, next)
+      const res = await saveOverridesAction(event.prefix, next)
       if (res.ok) {
         onSaved(next)
         alert('Overrides saved.')

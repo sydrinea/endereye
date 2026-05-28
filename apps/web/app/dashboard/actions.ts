@@ -1,7 +1,7 @@
 'use server'
 
 import { cookies } from 'next/headers'
-import { revalidatePath } from 'next/cache'
+import { revalidateTag } from 'next/cache'
 import { redirect } from 'next/navigation'
 import {
   fetchMatch,
@@ -64,22 +64,26 @@ export async function uploadMatchesAction(
 
   const event = buildEvent(allMatches, bonusMap)
 
-  const existingPlayers = await getR2Object(`${prefix}.players.json`)
+  const existingPlayers = await getR2Object<EventPlayer[]>(`${prefix}.players.json`)
+
+  const updatedPlayers = await (async () => {
+    if (existingPlayers === null) {
+      return enrichEventPlayers(event, kind, season)
+    }
+    const knownUuids = new Set(existingPlayers.map((p) => p.uuid))
+    const newUuids = event.players.filter((p) => !knownUuids.has(p.uuid))
+    if (newUuids.length === 0) return existingPlayers
+    const enriched = await enrichEventPlayers({ ...event, players: newUuids }, kind, season)
+    return [...existingPlayers, ...enriched]
+  })()
 
   await Promise.all([
     putR2Object(`${prefix}.raw.json`, allMatches),
     putR2Object(`${prefix}.event.json`, { ...event, qualifyCount }),
-    existingPlayers === null
-      ? enrichEventPlayers(event, kind, season).then((players) =>
-          putR2Object(`${prefix}.players.json`, players),
-        )
-      : Promise.resolve(),
+    putR2Object(`${prefix}.players.json`, updatedPlayers),
   ])
 
-  revalidatePath('/')
-  revalidatePath('/live')
-  revalidatePath(`/lcq/${season}`)
-  revalidatePath(`/special/2026/worlds`)
+  revalidateTag(`event:${prefix}`, 'max')
 
   return { ok: true, matchCount: allMatches.length, newCount: newMatches.length }
 }
@@ -118,10 +122,7 @@ export async function deleteMatchAction(
     ])
   }
 
-  revalidatePath('/')
-  revalidatePath('/live')
-  revalidatePath(`/lcq/${season}`)
-  revalidatePath(`/special/2026/worlds`)
+  revalidateTag(`event:${prefix}`, 'max')
 
   return { ok: true, matchCount: remaining.length }
 }
@@ -137,7 +138,7 @@ export async function updateEventsConfigAction(
     return { ok: false, error: e instanceof Error ? e.message : 'Invalid JSON' }
   }
   await putR2EventsConfig(parsed)
-  revalidatePath('/')
+  revalidateTag('events-config', 'max')
   return { ok: true }
 }
 
@@ -149,7 +150,7 @@ export async function deleteEventAction(
   if (!configs) return { ok: false, error: 'No events config found in R2' }
   const updated = configs.filter((e) => e.slug !== slug)
   await putR2EventsConfig(updated)
-  revalidatePath('/')
+  revalidateTag('events-config', 'max')
   return { ok: true, configJson: JSON.stringify(updated, null, 2) }
 }
 
@@ -184,13 +185,9 @@ export async function getEventDataForOverridesAction(
 
 export async function saveOverridesAction(
   prefix: string,
-  season: number,
   overrides: RawOverrides,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await putR2Object(`${prefix}.overrides.json`, overrides)
-  revalidatePath('/')
-  revalidatePath('/live')
-  revalidatePath(`/lcq/${season}`)
-  revalidatePath(`/special/2026/worlds`)
+  revalidateTag(`event:${prefix}`, 'max')
   return { ok: true }
 }
