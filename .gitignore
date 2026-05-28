@@ -13,3 +13,6 @@ archive/events
 
 # Admin
 PRE_EVENT_CHECKLIST.md
+
+# Cloudflare
+.wrangler
