@@ -12,8 +12,6 @@ import { fetchUser } from '@endereye/core'
 
 const UUID_RE = /^[0-9a-f]{32}$/i
 
-export const revalidate = 2592000 // 30 days
-
 async function resolveUser(segment: string) {
   const user = await fetchUser(segment)
   if (UUID_RE.test(segment) && user.nickname !== segment) {

@@ -193,7 +193,9 @@ export function StandingsRow({
           <PlayerAvatar nickname={row.nickname} size="sm" />
           <span className="font-display text-zinc-100 flex-1 truncate">{row.nickname}</span>
           <span className="font-display text-zinc-100 shrink-0">{row.pts}</span>
-          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDotColor[row.status]}`} />
+          <span
+            className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDotColor[row.status]}`}
+          />
         </div>
 
         {/* Expandable detail */}
@@ -206,7 +208,9 @@ export function StandingsRow({
                 status={row.status}
                 label={row.status === 'qualified' ? row.qualifiedLabel : undefined}
               />
-              <span className={`text-xs ${dimmedFg[row.status]}`}>{row.survivalPct}% Survive</span>
+              <span className={`text-xs transition-colors duration-300 ${dimmedFg[row.status]}`}>
+                {row.survivalPct}% Survive
+              </span>
               {row.bonus > 0 && <span className="text-xs text-zinc-500">+{row.bonus} bonus</span>}
               {row.pill && <SurvivalPill {...row.pill} />}
               {onSelectScenarios && (

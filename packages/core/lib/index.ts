@@ -5,6 +5,7 @@ export * from './api/fetch'
 export * from './core/config'
 export * from './core/simulation'
 export * from './core/odds'
+export type { MCResult } from './core/monte-carlo'
 export * from './core/context'
 
 export * from './context/event'

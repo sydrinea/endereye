@@ -1,7 +1,7 @@
 import type { EliminationCut } from './config'
-import { type SimPlayer, type LobbyStats, calculateLobbyStats } from './player-model'
-import { getAvailableScores, applyElimination } from './scoring'
-import { rankPlayers, simulateRound } from './monte-carlo'
+import { type SimPlayer, calculateLobbyStats, createSimPool } from './player-model'
+import { getAvailableScores } from './scoring'
+import { rankInplace, simulateRoundInplace, applyEliminationInplace } from './monte-carlo'
 
 export interface PlacementConstraint {
   uuid: string
@@ -18,30 +18,6 @@ export interface SurvivalScenario {
 export interface SharedRecord {
   placements: Record<string, number>
   survivedByUuid: Record<string, boolean>
-}
-
-function simulateAndRecordFirstRound(
-  alive: SimPlayer[],
-  round: number,
-  stats: LobbyStats,
-): { newAlive: SimPlayer[]; placements: Record<string, number> } {
-  const ranked = rankPlayers(alive, round, stats)
-  const completers = ranked.filter((r) => r.val !== -Infinity)
-  const scores = getAvailableScores(completers.length)
-
-  const placements: Record<string, number> = {}
-  ranked.forEach((entry, place) => {
-    placements[alive[entry.idx].uuid] = place + 1
-  })
-
-  let completerRank = 0
-  const earned = new Map<number, number>()
-  for (const entry of ranked) {
-    earned.set(entry.idx, entry.val === -Infinity ? 0 : (scores[completerRank++] ?? 0))
-  }
-
-  const newAlive = alive.map((p, i) => ({ ...p, point: p.point + (earned.get(i) ?? 0) }))
-  return { newAlive, placements }
 }
 
 function constraintsMet(
@@ -166,13 +142,34 @@ function buildScenariosFromRecords(
         other.constraints.length < scenario.constraints.length &&
         other.constraints.every((oc) =>
           scenario.constraints.some(
-            (sc) => sc.uuid === oc.uuid && sc.minPlace === oc.minPlace && sc.maxPlace === oc.maxPlace,
+            (sc) =>
+              sc.uuid === oc.uuid &&
+              sc.minPlace === oc.minPlace &&
+              sc.maxPlace === oc.maxPlace,
           ),
         ),
     )
   })
 
   return deduped.slice(0, maxScenarios)
+}
+
+// Simulate the first round in-place and record each alive player's placement (1-based).
+function simulateFirstRoundInplace(
+  pool: ReturnType<typeof createSimPool>,
+  round: number,
+  placements: Record<string, number>,
+): void {
+  const count = rankInplace(pool, round)
+  let completerCount = 0
+  for (let k = 0; k < count; k++) if (pool.rankVals[k] !== -Infinity) completerCount++
+  const scores = getAvailableScores(completerCount)
+  let scoreIdx = 0
+  for (let k = 0; k < count; k++) {
+    const idx = pool.rankIdx[k]
+    pool.points[idx] += pool.rankVals[k] !== -Infinity ? (scores[scoreIdx++] ?? 0) : 0
+    placements[pool.uuids[idx]] = k + 1
+  }
 }
 
 export function runBatchSimulation(
@@ -184,29 +181,29 @@ export function runBatchSimulation(
   const nextCutEntry = cuts.find((c) => c.afterSeed >= currentRound)
   if (!nextCutEntry) return []
 
+  const n = players.length
   const stats = calculateLobbyStats(players)
+  const pool = createSimPool(players, stats)
   const records: SharedRecord[] = []
 
-  for (let i = 0; i < iterations; i++) {
-    let alive = players.map((p) => ({ ...p }))
-    let placements: Record<string, number> = {}
+  for (let iter = 0; iter < iterations; iter++) {
+    pool.points.set(pool.basePoints)
+    pool.alive.fill(1)
+
+    const placements: Record<string, number> = {}
 
     for (let r = currentRound; r <= nextCutEntry.afterSeed; r++) {
-      if (alive.length === 0) break
       if (r === currentRound) {
-        const result = simulateAndRecordFirstRound(alive, r, stats)
-        alive = result.newAlive
-        placements = result.placements
+        simulateFirstRoundInplace(pool, r, placements)
       } else {
-        alive = simulateRound(alive, r, stats)
+        simulateRoundInplace(pool, r)
       }
       const cut = cuts.find((c) => c.afterSeed === r)
-      if (cut) alive = applyElimination(alive, cut)
+      if (cut) applyEliminationInplace(pool, cut)
     }
 
-    const aliveSet = new Set(alive.map((p) => p.uuid))
     const survivedByUuid: Record<string, boolean> = {}
-    for (const p of players) survivedByUuid[p.uuid] = aliveSet.has(p.uuid)
+    for (let i = 0; i < n; i++) survivedByUuid[pool.uuids[i]] = pool.alive[i] === 1
     records.push({ placements, survivedByUuid })
   }
 
@@ -263,55 +260,49 @@ export function runScenarioAnalysis(
   const nextCutEntry = cuts.find((c) => c.afterSeed >= currentRound)
   if (!nextCutEntry) return { scenarios: [], baseProbability: 0 }
 
-  const stats = calculateLobbyStats(players)
   const n = players.length
+  const stats = calculateLobbyStats(players)
+  const pool = createSimPool(players, stats)
+  const targetIdx = pool.uuidToIdx.get(targetUuid) ?? -1
+  if (targetIdx === -1) return { scenarios: [], baseProbability: 0 }
 
   type SimRecord = { placements: Record<string, number>; survived: boolean }
   const records: SimRecord[] = []
 
-  for (let i = 0; i < iterations; i++) {
-    let alive = players.map((p) => ({ ...p }))
-    let placements: Record<string, number> = {}
+  for (let iter = 0; iter < iterations; iter++) {
+    pool.points.set(pool.basePoints)
+    pool.alive.fill(1)
+
+    const placements: Record<string, number> = {}
 
     for (let r = currentRound; r <= nextCutEntry.afterSeed; r++) {
-      if (alive.length === 0) break
       if (r === currentRound) {
         if (fixedTargetLast) {
-          // Target DNFs — distribute scores to the other completers only
-          const tIdx = alive.findIndex((p) => p.uuid === targetUuid)
-          const others = alive.filter((_, i) => i !== tIdx)
-          const otherRanked = rankPlayers(others, r, stats)
-          const otherCompleters = otherRanked.filter((e) => e.val !== -Infinity)
-          const otherScores = getAvailableScores(otherCompleters.length)
-          placements[targetUuid] = n
-          otherRanked.forEach((entry, place) => {
-            placements[others[entry.idx].uuid] = place + 1
-          })
-          const earnedByUuid = new Map<string, number>()
-          let completerRank = 0
-          for (const entry of otherRanked) {
-            earnedByUuid.set(
-              others[entry.idx].uuid,
-              entry.val === -Infinity ? 0 : (otherScores[completerRank++] ?? 0),
-            )
+          // Force target to DNF: exclude from ranking, give them last place and 0 points
+          pool.alive[targetIdx] = 0
+          const count = rankInplace(pool, r)
+          let completerCount = 0
+          for (let k = 0; k < count; k++) if (pool.rankVals[k] !== -Infinity) completerCount++
+          const scores = getAvailableScores(completerCount)
+          let scoreIdx = 0
+          for (let k = 0; k < count; k++) {
+            const idx = pool.rankIdx[k]
+            pool.points[idx] += pool.rankVals[k] !== -Infinity ? (scores[scoreIdx++] ?? 0) : 0
+            placements[pool.uuids[idx]] = k + 1
           }
-          alive = alive.map((p) => ({
-            ...p,
-            point: p.uuid === targetUuid ? p.point : p.point + (earnedByUuid.get(p.uuid) ?? 0),
-          }))
+          placements[targetUuid] = n
+          pool.alive[targetIdx] = 1 // restore — target didn't score but is still in the event
         } else {
-          const result = simulateAndRecordFirstRound(alive, r, stats)
-          alive = result.newAlive
-          placements = result.placements
+          simulateFirstRoundInplace(pool, r, placements)
         }
       } else {
-        alive = simulateRound(alive, r, stats)
+        simulateRoundInplace(pool, r)
       }
       const cut = cuts.find((c) => c.afterSeed === r)
-      if (cut) alive = applyElimination(alive, cut)
+      if (cut) applyEliminationInplace(pool, cut)
     }
 
-    records.push({ placements, survived: alive.some((p) => p.uuid === targetUuid) })
+    records.push({ placements, survived: pool.alive[targetIdx] === 1 })
   }
 
   const naturalSurvived = records.filter((r) => r.survived).length
@@ -319,8 +310,6 @@ export function runScenarioAnalysis(
 
   const baseP = naturalSurvived / iterations
   const opponents = players.filter((p) => p.uuid !== targetUuid)
-
   const scenarios = buildScenariosFromRecords(records, opponents, n, baseP, 5, 3, 8, threatMode)
-
   return { scenarios, baseProbability: baseP }
 }
