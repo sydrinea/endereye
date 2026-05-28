@@ -55,6 +55,26 @@
     },
     {
       "type": "threat",
+      "event": "LCQ S10 seed7",
+      "playerNickname": "nahhann",
+      "survP": 0.6657,
+      "constraintNickname": "vorbhfan3",
+      "constraintBound": 3,
+      "actualPlace": 8,
+      "nAlive": 32
+    },
+    {
+      "type": "threat",
+      "event": "MSS S10 seed7",
+      "playerNickname": "Pinne",
+      "survP": 0.88715,
+      "constraintNickname": "retropog",
+      "constraintBound": 7,
+      "actualPlace": 18,
+      "nAlive": 27
+    },
+    {
+      "type": "threat",
       "event": "MSS S10 seed7",
       "playerNickname": "Pinne",
       "survP": 0.892,

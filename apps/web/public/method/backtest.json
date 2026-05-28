@@ -5,10 +5,7 @@
     "baselineAuc": 0.7617666374781086,
     "lift": 0.12850262697022763,
     "pValue": 0,
-    "ci95": [
-      0.045240137221269294,
-      0.21567124383415537
-    ],
+    "ci95": [0.045240137221269294, 0.21567124383415537],
     "survivalBrier": 0.10144825197681524,
     "seed0WinBrier": 0.044783366144278636,
     "totalPredictions": 3278,
@@ -262,7 +259,7 @@
       "uuid": "25d4de4fe37248f0bba16b43ca1994bb",
       "nickname": "Hinart",
       "elo": 1826,
-      "winProb": 0.0061,
+      "winProb": 0.00645,
       "won": false
     },
     {
@@ -532,7 +529,7 @@
       "uuid": "41d79a18ef5540d6bb3d68634f06a3b1",
       "nickname": "okshey",
       "elo": 1924,
-      "winProb": 0.04125,
+      "winProb": 0.04315,
       "won": false
     },
     {
@@ -1234,7 +1231,7 @@
       "uuid": "132807fea3a54a02b6b1ad057430b002",
       "nickname": "ulqt",
       "elo": 1621,
-      "winProb": 0.00435,
+      "winProb": 0.00395,
       "won": false
     },
     {
@@ -1990,7 +1987,7 @@
       "uuid": "09985aa919494b5daf4f767ef09259e9",
       "nickname": "b1ur_",
       "elo": 1807,
-      "winProb": 0.0027,
+      "winProb": 0.0024,
       "won": false
     },
     {
@@ -2332,7 +2329,7 @@
       "uuid": "0771b6d3405c474ea63aba593ed1c9fa",
       "nickname": "hyphenangel",
       "elo": 1690,
-      "winProb": 0.0103,
+      "winProb": 0.00915,
       "won": false
     },
     {
@@ -2404,7 +2401,7 @@
       "uuid": "5fe66e8b389f4dc384222e8cc09485f0",
       "nickname": "sanjinhu",
       "elo": 1906,
-      "winProb": 0.43585,
+      "winProb": 0.43995,
       "won": false
     },
     {
@@ -3061,7 +3058,7 @@
       "uuid": "00f996cd910f479ba0903d85c2bdb1e0",
       "nickname": "Bloonskiller",
       "elo": 2082,
-      "winProb": 0.01905,
+      "winProb": 0.0175,
       "won": false
     },
     {
@@ -3160,7 +3157,7 @@
       "uuid": "97800bfa7f1c42e19162ea1c2bc7078b",
       "nickname": "mi5f1t",
       "elo": 2065,
-      "winProb": 0.00795,
+      "winProb": 0.0088,
       "won": false
     },
     {
@@ -3358,7 +3355,7 @@
       "uuid": "6c4b4e74963d40e3b5a7118f3e0b0dc4",
       "nickname": "7astrid",
       "elo": 2026,
-      "winProb": 0.003,
+      "winProb": 0.0033,
       "won": false
     },
     {
@@ -4258,7 +4255,7 @@
       "uuid": "4f3e7905554345698e41f88caa4c088e",
       "nickname": "cofesho",
       "elo": 1787,
-      "winProb": 0.0036,
+      "winProb": 0.0038,
       "won": false
     },
     {
@@ -4519,7 +4516,7 @@
       "uuid": "cf1102ea451241d187aaa62e05cab5c3",
       "nickname": "nonsochiamaa",
       "elo": 2227,
-      "winProb": 0.0065,
+      "winProb": 0.00685,
       "won": false
     },
     {
@@ -5023,7 +5020,7 @@
       "uuid": "7fad8dae2ab04971bc07a6440f84d609",
       "nickname": "suravil",
       "elo": 1941,
-      "winProb": 0.00115,
+      "winProb": 0.00145,
       "won": false
     },
     {
@@ -5365,7 +5362,7 @@
       "uuid": "553414a2c89b4d6b8c0ba5bd89284508",
       "nickname": "ulsah1n",
       "elo": 2257,
-      "winProb": 0.0548,
+      "winProb": 0.05275,
       "won": false
     },
     {
