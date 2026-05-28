@@ -2,6 +2,7 @@
 
 import { Breadcrumbs, PlayerAvatar } from '@/components/ui'
 import type { CareerContext } from '@/lib/career-data'
+import { Expand } from 'lucide-react'
 import { useCareerModal } from './CareerModal'
 
 export function CareerHeader({ career }: { career: CareerContext }) {
@@ -9,6 +10,15 @@ export function CareerHeader({ career }: { career: CareerContext }) {
   return (
     <div className="text-zinc-400">
         <div className="flex flex-col gap-4">
+          {inModal && (
+            <button
+              onClick={() => { window.location.href = `/players/${career.nickname}` }}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
+              title="Open full page"
+            >
+              <Expand size={16} />
+            </button>
+          )}
           {!inModal && <Breadcrumbs
             items={[
               { label: 'Home', href: '/' },
