@@ -65,7 +65,7 @@ export async function getActiveEvent(): Promise<EventConfig | null> {
   const cutoff = new Date()
   cutoff.setHours(0, 0, 0, 0)
   // show most recent event for up to 7 days
-  cutoff.setDate(cutoff.getDate() - 1)
+  cutoff.setDate(cutoff.getDate() - 7)
 
   const activeOrFuture = r2
     .filter(isVisible)
