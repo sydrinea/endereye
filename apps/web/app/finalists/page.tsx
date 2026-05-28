@@ -15,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const imagePath = `/api/og?type=finalists&players=${[...new Set([...data.finalists.map((finalist) => finalist.uuid)])].join(',')}`
   return buildMeta({
     title: 'Finalist Results | endereye',
-    description: 'Survival analytics across all finalists from every historical event',
+    description: 'Survival analytics across all finalists from every historical event.',
     imagePath,
   })
 }
