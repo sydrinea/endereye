@@ -98,3 +98,49 @@ export function randomGaussian(): number {
   while (v === 0) v = Math.random()
   return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v)
 }
+
+// Typed-array pool for the Monte Carlo hot loop — allocated once per simulation run,
+// mutated in-place each iteration to eliminate GC pressure.
+export interface SimPool {
+  n: number
+  uuids: string[]
+  uuidToIdx: Map<string, number>
+  // static per-player data (never mutated)
+  dnfProb: Float64Array        // [n]
+  variance: Float64Array       // [n]
+  powerByRound: Float64Array   // [n * 11]: power[i * 11 + round] for rounds 1–10
+  basePoints: Float64Array     // [n] starting points, copied into `points` each iteration
+  // mutable per-iteration state
+  points: Float64Array         // [n]
+  alive: Uint8Array            // [n] 1 = alive, 0 = eliminated
+  // scratch space (reused each round, no allocation)
+  rankIdx: Int32Array          // [n]
+  rankVals: Float64Array       // [n]
+}
+
+export function createSimPool(players: SimPlayer[], stats: LobbyStats): SimPool {
+  const n = players.length
+  const pool: SimPool = {
+    n,
+    uuids: players.map((p) => p.uuid),
+    uuidToIdx: new Map(players.map((p, i) => [p.uuid, i])),
+    dnfProb: new Float64Array(n),
+    variance: new Float64Array(n),
+    powerByRound: new Float64Array(n * 11),
+    basePoints: new Float64Array(n),
+    points: new Float64Array(n),
+    alive: new Uint8Array(n),
+    rankIdx: new Int32Array(n),
+    rankVals: new Float64Array(n),
+  }
+  for (let i = 0; i < n; i++) {
+    const p = players[i]
+    pool.dnfProb[i] = getDNFProbability(p, stats)
+    pool.variance[i] = getPlayerVariance(p, stats)
+    for (let r = 1; r <= 10; r++) {
+      pool.powerByRound[i * 11 + r] = getPlayerPower(p, r, stats)
+    }
+    pool.basePoints[i] = p.point
+  }
+  return pool
+}

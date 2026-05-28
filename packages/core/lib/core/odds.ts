@@ -14,6 +14,7 @@ import {
   runScenarioAnalysis,
   toSimPlayer,
 } from './simulation'
+import type { MCResult } from './monte-carlo'
 export type { PlacementConstraint, SurvivalScenario } from './simulation'
 
 export type PlayerStatus = 'qualified' | 'safe' | 'danger' | 'eliminated'
@@ -109,7 +110,30 @@ function computeFinishedOdds(
   }
 }
 
-export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds> {
+export function computeMCResults(
+  ctx: EventContext,
+  iterations = 20000,
+): Record<string, MCResult> {
+  const { currentRound, brackets, players } = ctx
+  const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
+  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
+  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
+    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
+  )
+  const lastSeed = Math.max(...effectiveSchedule.map((c) => c.afterSeed))
+  const isOver = currentRound > lastSeed
+  const playerLookup = new Map(players.map((p) => [p.uuid, p]))
+  const alivePlayers = brackets
+    .filter((b) => !b.eliminated)
+    .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
+  if (isOver || currentRound < 1 || alivePlayers.length === 0) return {}
+  return runMonteCarlo(alivePlayers, currentRound, effectiveSchedule, qualifyCount, iterations)
+}
+
+export function computePlayerOdds(
+  ctx: EventContext,
+  externalMCResults?: Record<string, MCResult>,
+): Record<string, PlayerOdds> {
   const { currentRound, brackets, players } = ctx
   const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
   const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
@@ -130,9 +154,11 @@ export function computePlayerOdds(ctx: EventContext): Record<string, PlayerOdds>
     nextCut && alivePlayers.length > 0 ? getCutThreshold(nextCut, sortedAlive) : 0
 
   const mcResults =
-    !isOver && currentRound >= 1 && alivePlayers.length > 0
-      ? runMonteCarlo(alivePlayers, currentRound, effectiveSchedule, qualifyCount)
-      : {}
+    externalMCResults !== undefined
+      ? externalMCResults
+      : !isOver && currentRound >= 1 && alivePlayers.length > 0
+        ? runMonteCarlo(alivePlayers, currentRound, effectiveSchedule, qualifyCount)
+        : {}
 
   const qualifiedUuids = isOver
     ? new Set(

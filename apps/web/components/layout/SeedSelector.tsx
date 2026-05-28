@@ -7,13 +7,19 @@ import { Dropdown } from '@/components/ui'
 interface Props {
   seeds: number[]
   currentSeed: number
+  basePath: string
 }
 
-export function SeedSelector({ seeds, currentSeed }: Props) {
+export function SeedSelector({ seeds, currentSeed, basePath }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
   const sortedSeeds = [...seeds].sort((a, b) => a - b)
+  const latestSeed = sortedSeeds[sortedSeeds.length - 1]
+
+  // Extract tab suffix (/analytics or /players) from current path, ignoring player detail pages
+  const seedSegmentMatch = pathname.match(/\/seed\/\d+(\/(?:analytics|players))?/)
+  const tabSuffix = seedSegmentMatch?.[1] ?? ''
   const options = [
     ...sortedSeeds
       .slice()
@@ -21,7 +27,6 @@ export function SeedSelector({ seeds, currentSeed }: Props) {
       .map((s) => ({ value: String(s), label: `After Seed ${s}` })),
     { value: '0', label: 'Initial Rankings' },
   ]
-  const latestSeed = sortedSeeds[sortedSeeds.length - 1]
 
   return (
     <div className="relative flex items-center gap-2">
@@ -29,9 +34,15 @@ export function SeedSelector({ seeds, currentSeed }: Props) {
         options={options}
         value={String(currentSeed)}
         onChange={(v) =>
-          startTransition(() =>
-            Number(v) === latestSeed ? router.push(pathname) : router.push(`?seed=${v}`),
-          )
+          startTransition(() => {
+            const isLatest = Number(v) === latestSeed
+            if (isLatest && tabSuffix === '') {
+              router.push(basePath)
+            } else {
+              const targetSeed = isLatest ? latestSeed : Number(v)
+              router.push(`${basePath}/seed/${targetSeed}${tabSuffix}`)
+            }
+          })
         }
       />
       {isPending && (

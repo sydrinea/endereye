@@ -8,8 +8,6 @@ import { Metadata } from 'next'
 import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
 
-export const revalidate = false
-
 async function getPlayerUuids(): Promise<string[]> {
   const directoryPath = join(process.cwd(), 'public', 'data', 'career')
 

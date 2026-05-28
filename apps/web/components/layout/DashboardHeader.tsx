@@ -15,6 +15,7 @@ interface Props {
   event: string
   seeds: number[]
   currentSeed: number
+  basePath: string
   alive: number
   counts: StatusCounts
   live?: boolean
@@ -29,7 +30,7 @@ const statusKeys: Array<{ key: keyof StatusCounts; status: Status }> = [
   { key: 'mustClutch', status: 'must-clutch' },
 ]
 
-export function DashboardHeader({ event, seeds, currentSeed, alive, counts, live = true }: Props) {
+export function DashboardHeader({ event, seeds, currentSeed, basePath, alive, counts, live = true }: Props) {
   const segments = statusKeys
     .filter(({ key }) => (counts[key] ?? 0) > 0)
     .map(({ key, status }) => ({ status, count: counts[key]! }))
@@ -54,7 +55,7 @@ export function DashboardHeader({ event, seeds, currentSeed, alive, counts, live
               {event}
             </span>
           </div>
-          <SeedSelector seeds={seeds} currentSeed={currentSeed} />
+          <SeedSelector seeds={seeds} currentSeed={currentSeed} basePath={basePath} />
         </div>
 
         <div className="flex shrink-0">

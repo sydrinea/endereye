@@ -9,12 +9,17 @@ export function mssPhasePoints(rank: number): number {
   return 0
 }
 
-export function getAvailableScores(aliveCount: number): number[] {
-  const N = Math.min(aliveCount, 24)
-  return Array.from({ length: aliveCount }, (_, i) => {
+const SCORE_CACHE: number[][] = Array.from({ length: 25 }, (_, n) =>
+  Array.from({ length: n }, (_, i) => {
     const p = i + 1
-    return p > 24 ? 0 : Math.round((24 * (N - p + 1)) / N)
-  })
+    return p > 24 ? 0 : Math.round((24 * (n - p + 1)) / n)
+  }),
+)
+
+export function getAvailableScores(aliveCount: number): number[] {
+  if (aliveCount <= 24) return SCORE_CACHE[aliveCount] ?? []
+  // Beyond 24 players the trailing positions score 0
+  return [...SCORE_CACHE[24], ...new Array(aliveCount - 24).fill(0)]
 }
 
 export function applyElimination(players: SimPlayer[], cut: EliminationCut): SimPlayer[] {

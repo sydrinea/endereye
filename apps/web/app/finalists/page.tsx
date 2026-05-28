@@ -7,8 +7,6 @@ import { buildMeta } from '@/lib/og-metadata'
 import type { FinalistsChartData } from '@/lib/finals-stats'
 import { Metadata } from 'next'
 
-export const revalidate = false
-
 export async function generateMetadata(): Promise<Metadata> {
   const data = await readFile(
     join(process.cwd(), 'public', 'data', 'finalists.json'),

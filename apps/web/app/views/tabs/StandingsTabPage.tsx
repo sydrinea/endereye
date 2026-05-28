@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Suspense, use, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   buildScenarioRecords,
   computeHistoricalData,
@@ -14,38 +14,16 @@ import { Table } from '@/components/ui'
 import { StandingsRow } from '../StandingsRow'
 import { EliminatedSection } from '../EliminatedSection'
 import { SurvivalScenariosModal } from '../SurvivalScenariosModal'
-import { Spinner } from '../Spinner'
 import { mssPhasePoints, computeCutKeep, toRowData } from '@/lib/dashboard-utils'
 import { useEventShell } from '../EventShell'
 
 const CUT_SEEDS = [3, 5, 7, 8, 9, 10]
 const COLS = '4rem 1fr 8rem 14rem 10rem'
 
-function StandingsInner() {
+export function StandingsTabPage() {
   const { views, eventData, seed, filteredNicknames } = useEventShell()
 
-  const [recordsState, setRecordsState] = useState(() => ({
-    seed,
-    promise: new Promise<ScenarioRecords | null>((resolve) =>
-      setTimeout(() => {
-        const ctx = computeHistoricalData(eventData, seed)
-        resolve(buildScenarioRecords(ctx))
-      }, 0),
-    ),
-  }))
-
-  let recordsPromise = recordsState.promise
-  if (recordsState.seed !== seed) {
-    recordsPromise = new Promise<ScenarioRecords | null>((resolve) =>
-      setTimeout(() => {
-        const ctx = computeHistoricalData(eventData, seed)
-        resolve(buildScenarioRecords(ctx))
-      }, 0),
-    )
-    setRecordsState({ seed, promise: recordsPromise })
-  }
-
-  const scenarioRecords = use(recordsPromise)
+  const scenarioRecordsRef = useRef<{ seed: number; records: ScenarioRecords | null } | null>(null)
 
   const [scenarioTarget, setScenarioTarget] = useState<{
     view: PlayerView
@@ -54,10 +32,25 @@ function StandingsInner() {
     dnfSurvivalProbability: number
   } | null>(null)
 
+  function getScenarioRecords(): Promise<ScenarioRecords | null> {
+    if (scenarioRecordsRef.current?.seed === seed) {
+      return Promise.resolve(scenarioRecordsRef.current.records)
+    }
+    return new Promise((resolve) =>
+      setTimeout(() => {
+        const ctx = computeHistoricalData(eventData, seed)
+        const records = buildScenarioRecords(ctx)
+        scenarioRecordsRef.current = { seed, records }
+        resolve(records)
+      }, 0),
+    )
+  }
+
   const isMss = eventData.kind === 'mss'
   const qualifiedLabel = (pts: number) => (isMss ? `${pts} Phase Points` : undefined)
 
   const activeViews = views.filter((v) => v.status !== 'eliminated')
+
   const rows = activeViews.map((v) =>
     toRowData(v, eventData.overrides, qualifiedLabel(mssPhasePoints(v.rank))),
   )
@@ -81,7 +74,8 @@ function StandingsInner() {
     if (!eligible) return undefined
     return () =>
       new Promise<void>((resolve) =>
-        setTimeout(() => {
+        setTimeout(async () => {
+          const scenarioRecords = await getScenarioRecords()
           const threatMode =
             view.status === 'safe' ||
             view.status === 'qualified' ||
@@ -182,19 +176,5 @@ function StandingsInner() {
         onClose={() => setScenarioTarget(null)}
       />
     </>
-  )
-}
-
-export function StandingsTabPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex justify-center py-8">
-          <Spinner />
-        </div>
-      }
-    >
-      <StandingsInner />
-    </Suspense>
   )
 }

@@ -4,8 +4,6 @@ import { getEventContext } from '../lib/event-data'
 import { HeroSection } from './views/HeroSection'
 import { Footer } from '@/components/layout'
 
-export const revalidate = false
-
 export default async function Page() {
   await connection()
   const [activeEvent, allEvents] = await Promise.all([getActiveEvent(), getAllEvents()])
@@ -14,7 +12,12 @@ export default async function Page() {
   const upcomingEvents = allEvents.filter((e) => e.slug !== activeEvent?.slug && e.startDate >= now)
 
   const eventData = activeEvent
-    ? await getEventContext(activeEvent.kind, activeEvent.season, activeEvent.prefix, activeEvent.qualifyCount)
+    ? await getEventContext(
+        activeEvent.kind,
+        activeEvent.season,
+        activeEvent.prefix,
+        activeEvent.qualifyCount,
+      )
     : null
 
   const isLive = activeEvent ? now >= activeEvent.startDate : false
