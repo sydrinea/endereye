@@ -30,7 +30,15 @@ const statusKeys: Array<{ key: keyof StatusCounts; status: Status }> = [
   { key: 'mustClutch', status: 'must-clutch' },
 ]
 
-export function DashboardHeader({ event, seeds, currentSeed, basePath, alive, counts, live = true }: Props) {
+export function DashboardHeader({
+  event,
+  seeds,
+  currentSeed,
+  basePath,
+  alive,
+  counts,
+  live = true,
+}: Props) {
   const segments = statusKeys
     .filter(({ key }) => (counts[key] ?? 0) > 0)
     .map(({ key, status }) => ({ status, count: counts[key]! }))

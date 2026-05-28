@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { createContext, useContext, useState, useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import { createContext, useContext, useState, useEffect, useTransition } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { RotateCw, Loader2 } from 'lucide-react'
 import type { PlayerView, EventContext } from '@endereye/core'
-import { DashboardHeader, Surface } from '@/components/layout'
+import { DashboardHeader } from '@/components/layout'
 import { Breadcrumbs, PlayerFilter } from '@/components/ui'
 import { mapStatus } from '@/lib/dashboard-utils'
 
@@ -18,6 +19,7 @@ interface EventShellValue {
   addFilter: (nick: string) => void
   removeFilter: (nick: string) => void
   allNicknames: string[]
+  prefix: string
 }
 
 const EventShellCtx = createContext<EventShellValue | null>(null)
@@ -79,11 +81,52 @@ function TabNav({ basePath, seed }: { basePath: string; seed: number }) {
   )
 }
 
+function RefreshButton({ prefix, initialRound }: { prefix: string; initialRound: number }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const [isPending, startTransition] = useTransition()
+  const [hasUpdate, setHasUpdate] = useState(false)
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch(`/api/events/version?prefix=${encodeURIComponent(prefix)}`)
+        const { currentRound } = await res.json()
+        if (currentRound !== null && currentRound !== initialRound) {
+          await fetch(pathname)
+          setHasUpdate(true)
+        }
+      } catch {}
+    }
+
+    const id = setInterval(check, 30_000)
+    return () => clearInterval(id)
+  }, [prefix, initialRound, pathname])
+
+  return (
+    <button
+      onClick={() => {
+        setHasUpdate(false)
+        startTransition(() => router.refresh())
+      }}
+      disabled={isPending}
+      aria-label="Refresh"
+      className="relative p-1.5 rounded-md transition-colors text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 disabled:opacity-40 cursor-pointer"
+    >
+      {isPending ? <Loader2 size={16} className="animate-spin" /> : <RotateCw size={16} />}
+      {hasUpdate && !isPending && (
+        <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-safe" />
+      )}
+    </button>
+  )
+}
+
 export function EventShell({
   eventData,
   eventLabel,
   live,
   basePath,
+  prefix,
   seed,
   views,
   children,
@@ -92,20 +135,23 @@ export function EventShell({
   eventLabel: string
   live: boolean
   basePath: string
+  prefix: string
   seed: number
   views: PlayerView[]
   children: React.ReactNode
 }) {
   const filterKey = `endereye:filter:${eventLabel}`
-  const [filteredNicknames, setFilteredNicknames] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return []
+  const [filteredNicknames, setFilteredNicknames] = useState<string[]>([])
+
+  useEffect(() => {
     try {
       const stored = localStorage.getItem(filterKey)
-      return stored ? (JSON.parse(stored) as string[]) : []
-    } catch {
-      return []
-    }
-  })
+      if (stored) {
+        const parsed = JSON.parse(stored) as string[]
+        setTimeout(() => setFilteredNicknames(parsed), 0)
+      }
+    } catch {}
+  }, [filterKey])
 
   useEffect(() => {
     try {
@@ -144,31 +190,35 @@ export function EventShell({
     addFilter,
     removeFilter,
     allNicknames: views.map((v) => v.nickname),
+    prefix,
   }
 
   return (
     <EventShellCtx.Provider value={value}>
-      <div className="w-full px-4 lg:px-8 pt-4">
-        <Breadcrumbs
-          items={[
-            { label: 'Home', href: '/' },
-            { label: 'Events', href: '/archive' },
-            { label: eventLabel },
-          ]}
+      <div className="sticky top-0 z-20 bg-zinc-900">
+        <div className="w-full px-4 lg:px-8 pt-4">
+          <Breadcrumbs
+            items={[
+              { label: 'Home', href: '/' },
+              { label: 'Events', href: '/archive' },
+              { label: eventLabel },
+            ]}
+          />
+        </div>
+        <DashboardHeader
+          event={eventLabel}
+          seeds={ALL_SEEDS.slice(0, eventData.currentRound - 1)}
+          currentSeed={seed}
+          basePath={basePath}
+          alive={activeViews.length}
+          counts={counts}
+          live={live}
         />
-      </div>
-      <DashboardHeader
-        event={eventLabel}
-        seeds={ALL_SEEDS.slice(0, eventData.currentRound - 1)}
-        currentSeed={seed}
-        basePath={basePath}
-        alive={activeViews.length}
-        counts={counts}
-        live={live}
-      />
-      <Surface width="xl">
-        <div className="flex flex-col gap-2">
-          <TabNav basePath={basePath} seed={seed} />
+        <div className="max-w-7xl mx-auto px-4 flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2 mt-3">
+            <TabNav basePath={basePath} seed={seed} />
+            <RefreshButton prefix={prefix} initialRound={eventData.currentRound} />
+          </div>
           <PlayerFilter
             players={views.map((v) => v.nickname)}
             selected={filteredNicknames}
@@ -176,9 +226,11 @@ export function EventShell({
             onRemove={removeFilter}
           />
           <div className="border-b border-zinc-800" />
-          {children}
         </div>
-      </Surface>
+      </div>
+      <div className="max-w-7xl mx-auto px-4 pt-2 pb-6 text-zinc-400">
+        <div className="flex flex-col gap-2">{children}</div>
+      </div>
     </EventShellCtx.Provider>
   )
 }
