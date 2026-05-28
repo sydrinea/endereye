@@ -1,5 +1,20 @@
+import { cacheLife, cacheTag } from 'next/cache'
+import {
+  computeHistoricalData,
+  computeMCResults,
+  computePlayerOdds,
+  buildPlayerViews,
+} from '@endereye/core'
 import { getR2Object } from './r2'
-import type { EventContext, EventKind, EventPlayer, BracketEntry, OverrideMap, RawOverrides } from '@endereye/core'
+import type {
+  EventContext,
+  EventKind,
+  EventPlayer,
+  PlayerView,
+  BracketEntry,
+  OverrideMap,
+  RawOverrides,
+} from '@endereye/core'
 
 interface StoredEvent {
   currentRound: number
@@ -9,7 +24,10 @@ interface StoredEvent {
   qualifyCount?: number
 }
 
-function applyRawOverrides(brackets: BracketEntry[], raw: RawOverrides): { brackets: BracketEntry[]; overrides: OverrideMap } {
+function applyRawOverrides(
+  brackets: BracketEntry[],
+  raw: RawOverrides,
+): { brackets: BracketEntry[]; overrides: OverrideMap } {
   const overrides: OverrideMap = {}
   const patched = brackets.map((b) => {
     const playerOverrides = raw[b.uuid]
@@ -35,6 +53,9 @@ export async function getEventContext(
   prefix: string,
   qualifyCount?: number,
 ): Promise<EventContext | null> {
+  'use cache'
+  cacheLife('minutes')
+  cacheTag(`event:${prefix}`)
   const [eventData, playersData, rawOverrides] = await Promise.all([
     getR2Object<StoredEvent>(`${prefix}.event.json`),
     getR2Object<EventPlayer[]>(`${prefix}.players.json`),
@@ -76,4 +97,26 @@ export async function getEventContext(
     qualifyCount: eventData.qualifyCount ?? qualifyCount,
     overrides: overrides && Object.keys(overrides).length > 0 ? overrides : undefined,
   }
+}
+
+export async function getEventViews(
+  kind: EventKind,
+  season: number,
+  prefix: string,
+  seed: number,
+  qualifyCount?: number,
+): Promise<{ eventData: EventContext; views: PlayerView[] } | null> {
+  'use cache'
+  cacheLife('minutes')
+  cacheTag(`event:${prefix}`)
+
+  const eventData = await getEventContext(kind, season, prefix, qualifyCount)
+  if (!eventData) return null
+
+  const ctx = computeHistoricalData(eventData, seed)
+  const mcResults = computeMCResults(ctx, 20000)
+  const odds = computePlayerOdds(ctx, mcResults)
+  const views = buildPlayerViews(ctx, odds)
+
+  return { eventData, views }
 }

@@ -1,12 +1,6 @@
 import { notFound } from 'next/navigation'
-import {
-  computeHistoricalData,
-  computeMCResults,
-  computePlayerOdds,
-  buildPlayerViews,
-} from '@endereye/core'
 import { getAllEvents, getActiveEvent } from '@/lib/events-config'
-import { getEventContext } from '@/lib/event-data'
+import { getEventViews } from '@/lib/event-data'
 import { EventShell } from '@/app/views/EventShell'
 import { NoData } from '@/app/views/NoData'
 
@@ -38,27 +32,19 @@ export default async function EventSeedLayout({
   if (!event) return notFound()
 
   const eventLabel = event.label ?? defaultLabel(kind, id)
-  const eventData = await getEventContext(
-    kind as EventKind,
-    event.season ?? id,
-    event.prefix ?? `${kind}/${id}`,
-    event.qualifyCount,
-  )
-  if (!eventData) return <NoData label={eventLabel} />
-
-  const ctx = computeHistoricalData(eventData, seed)
-  const mcResults = computeMCResults(ctx, 20000)
-  const odds = computePlayerOdds(ctx, mcResults)
-  const views = buildPlayerViews(ctx, odds)
+  const prefix = event.prefix ?? `${kind}/${id}`
+  const result = await getEventViews(kind as EventKind, event.season ?? id, prefix, seed, event.qualifyCount)
+  if (!result) return <NoData label={eventLabel} />
 
   return (
     <EventShell
-      eventData={eventData}
+      eventData={result.eventData}
       eventLabel={eventLabel}
       live={event.slug === activeEvent?.slug}
       basePath={`/${kind}/${id}`}
+      prefix={prefix}
       seed={seed}
-      views={views}
+      views={result.views}
     >
       {children}
     </EventShell>

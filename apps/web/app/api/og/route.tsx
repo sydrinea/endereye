@@ -1,8 +1,6 @@
 import { ImageResponse } from 'next/og'
 import { NextRequest } from 'next/server'
 
-export const runtime = 'edge'
-
 async function loadGoogleFont(family: string, text: string): Promise<ArrayBuffer> {
   const url = `https://fonts.googleapis.com/css2?family=${family}&text=${encodeURIComponent(text)}`
   const css = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }).then((r) => r.text())

@@ -1,12 +1,6 @@
 import { notFound } from 'next/navigation'
-import {
-  computeHistoricalData,
-  computeMCResults,
-  computePlayerOdds,
-  buildPlayerViews,
-} from '@endereye/core'
 import { getAllEvents, getActiveEvent } from '@/lib/events-config'
-import { getEventContext } from '@/lib/event-data'
+import { getEventContext, getEventViews } from '@/lib/event-data'
 import { EventShell } from '@/app/views/EventShell'
 import { NoData } from '@/app/views/NoData'
 import { StandingsTabPage } from '@/app/views/tabs/StandingsTabPage'
@@ -33,30 +27,29 @@ export default async function EventKindPage({
     if (e.kind !== kind) return false
     return kind === 'worlds' ? e.startDate.getFullYear() === id : e.season === id
   })
+  if (!event) return notFound()
 
-  const eventLabel = event?.label ?? defaultLabel(kind, id)
-  const eventData = await getEventContext(
-    kind as EventKind,
-    event?.season ?? id,
-    event?.prefix ?? `${kind}/${id}`,
-    event?.qualifyCount,
-  )
+  const eventLabel = event.label ?? defaultLabel(kind, id)
+  const prefix = event.prefix ?? `${kind}/${id}`
+  const kindParam = kind as EventKind
+  const season = event.season ?? id
+
+  const eventData = await getEventContext(kindParam, season, prefix, event.qualifyCount)
   if (!eventData) return <NoData label={eventLabel} />
 
-  const latestSeed = Math.max(eventData.currentRound - 1, 0)
-  const ctx = computeHistoricalData(eventData, latestSeed)
-  const mcResults = computeMCResults(ctx, 20000)
-  const odds = computePlayerOdds(ctx, mcResults)
-  const views = buildPlayerViews(ctx, odds)
+  const seed = Math.max(eventData.currentRound - 1, 0)
+  const result = await getEventViews(kindParam, season, prefix, seed, event.qualifyCount)
+  if (!result) return <NoData label={eventLabel} />
 
   return (
     <EventShell
-      eventData={eventData}
+      eventData={result.eventData}
       eventLabel={eventLabel}
-      live={event?.slug === activeEvent?.slug}
+      live={event.slug === activeEvent?.slug}
       basePath={`/${kind}/${id}`}
-      seed={latestSeed}
-      views={views}
+      prefix={prefix}
+      seed={seed}
+      views={result.views}
     >
       <StandingsTabPage />
     </EventShell>
