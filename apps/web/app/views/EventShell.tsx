@@ -230,6 +230,17 @@ export function EventShell({
       </div>
       <div className="max-w-7xl mx-auto px-4 pt-2 pb-6 text-zinc-400">
         <div className="flex flex-col gap-2">{children}</div>
+        <p className="mt-4 text-xs text-zinc-600">
+          Match data via{' '}
+          <a
+            href="https://api.mcsrranked.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-zinc-400 transition-colors"
+          >
+            api.mcsrranked.com
+          </a>
+        </p>
       </div>
     </EventShellCtx.Provider>
   )

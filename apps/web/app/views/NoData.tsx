@@ -40,6 +40,17 @@ export function NoData({ label, prefix }: { label: string; prefix?: string }) {
         <Link href="/" className="inline-block text-accent hover:underline text-sm">
           Back to Home
         </Link>
+        <p className="text-xs text-zinc-600">
+          Match data via{' '}
+          <a
+            href="https://api.mcsrranked.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-zinc-400 transition-colors"
+          >
+            api.mcsrranked.com
+          </a>
+        </p>
       </div>
     </Surface>
   )
