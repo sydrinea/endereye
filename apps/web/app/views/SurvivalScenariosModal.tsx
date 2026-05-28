@@ -226,7 +226,7 @@ export function SurvivalScenariosModal({
           <div className="px-5">
             {snapScenarios.length === 0 ? (
               <p className="text-sm text-zinc-500 text-center py-6">
-                {threatView ? 'No significant threats found.' : 'No viable survival paths found.'}
+                {threatView ? 'No significant threats found.' : 'No notable survival paths found.'}
               </p>
             ) : (
               snapScenarios.map((s, i) => (
