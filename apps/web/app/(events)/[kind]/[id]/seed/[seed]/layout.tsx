@@ -34,7 +34,7 @@ export default async function EventSeedLayout({
   const eventLabel = event.label ?? defaultLabel(kind, id)
   const prefix = event.prefix ?? `${kind}/${id}`
   const result = await getEventViews(kind as EventKind, event.season ?? id, prefix, seed, event.qualifyCount)
-  if (!result) return <NoData label={eventLabel} />
+  if (!result) return <NoData label={eventLabel} prefix={prefix} />
 
   return (
     <EventShell

@@ -35,11 +35,11 @@ export default async function EventKindPage({
   const season = event.season ?? id
 
   const eventData = await getEventContext(kindParam, season, prefix, event.qualifyCount)
-  if (!eventData) return <NoData label={eventLabel} />
+  if (!eventData) return <NoData label={eventLabel} prefix={prefix} />
 
   const seed = Math.max(eventData.currentRound - 1, 0)
   const result = await getEventViews(kindParam, season, prefix, seed, event.qualifyCount)
-  if (!result) return <NoData label={eventLabel} />
+  if (!result) return <NoData label={eventLabel} prefix={prefix} />
 
   return (
     <EventShell
