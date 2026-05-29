@@ -1,7 +1,6 @@
 'use server'
 
 import { cookies } from 'next/headers'
-import { revalidateTag } from 'next/cache'
 import { redirect } from 'next/navigation'
 import {
   fetchMatch,
@@ -12,7 +11,7 @@ import {
   enrichEventPlayers,
 } from '@endereye/core'
 import type { EventKind, Match, EventPlayer, RawOverrides } from '@endereye/core'
-import { getR2Object, putR2Object, deleteR2Object } from '../../lib/r2'
+import { getR2Object, putR2Object, deleteR2Object, deleteR2CachedViews } from '../../lib/r2'
 import { putR2EventsConfig, type R2EventConfig } from '../../lib/events-config'
 
 export async function loginAction(_prevState: unknown, formData: FormData) {
@@ -83,7 +82,7 @@ export async function uploadMatchesAction(
     putR2Object(`${prefix}.players.json`, updatedPlayers),
   ])
 
-  revalidateTag(`event:${prefix}`, 'max')
+  await deleteR2CachedViews(prefix)
 
   return { ok: true, matchCount: allMatches.length, newCount: newMatches.length }
 }
@@ -122,7 +121,7 @@ export async function deleteMatchAction(
     ])
   }
 
-  revalidateTag(`event:${prefix}`, 'max')
+  await deleteR2CachedViews(prefix)
 
   return { ok: true, matchCount: remaining.length }
 }
@@ -138,7 +137,7 @@ export async function updateEventsConfigAction(
     return { ok: false, error: e instanceof Error ? e.message : 'Invalid JSON' }
   }
   await putR2EventsConfig(parsed)
-  revalidateTag('events-config', 'max')
+
   return { ok: true }
 }
 
@@ -150,7 +149,7 @@ export async function deleteEventAction(
   if (!configs) return { ok: false, error: 'No events config found in R2' }
   const updated = configs.filter((e) => e.slug !== slug)
   await putR2EventsConfig(updated)
-  revalidateTag('events-config', 'max')
+
   return { ok: true, configJson: JSON.stringify(updated, null, 2) }
 }
 
@@ -188,6 +187,6 @@ export async function saveOverridesAction(
   overrides: RawOverrides,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await putR2Object(`${prefix}.overrides.json`, overrides)
-  revalidateTag(`event:${prefix}`, 'max')
+  await deleteR2CachedViews(prefix)
   return { ok: true }
 }

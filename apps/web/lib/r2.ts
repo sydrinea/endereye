@@ -1,4 +1,11 @@
-import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+} from '@aws-sdk/client-s3'
+import type { PlayerView } from '@endereye/core'
 
 const r2 = new S3Client({
   region: 'auto',
@@ -34,5 +41,20 @@ export async function putR2Object(key: string, value: unknown): Promise<void> {
       Body: JSON.stringify(value),
       ContentType: 'application/json',
     }),
+  )
+}
+
+export async function getR2CachedViews(prefix: string, seed: number): Promise<PlayerView[] | null> {
+  return getR2Object<PlayerView[]>(`cache/views/${prefix}/${seed}.json`)
+}
+
+export async function deleteR2CachedViews(prefix: string): Promise<void> {
+  const list = await r2.send(
+    new ListObjectsV2Command({ Bucket: BUCKET, Prefix: `cache/views/${prefix}/` }),
+  )
+  const keys = (list.Contents ?? []).map((obj) => obj.Key).filter((k): k is string => Boolean(k))
+  if (keys.length === 0) return
+  await Promise.all(
+    keys.map((key) => r2.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }))),
   )
 }

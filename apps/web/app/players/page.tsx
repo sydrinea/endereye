@@ -1,4 +1,3 @@
-import { cacheLife } from 'next/cache'
 import { Footer } from '@/components/layout'
 import { getAllEvents } from '@/lib/events-config'
 import { getEventContext } from '@/lib/event-data'
@@ -44,8 +43,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function PlayersPage() {
-  'use cache'
-  cacheLife('max')
   const allEvents = await getAllEvents()
   const now = new Date()
   const past = allEvents.filter((e) => e.startDate < now)

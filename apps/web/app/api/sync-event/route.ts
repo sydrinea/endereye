@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidateTag } from 'next/cache'
 import { buildEventFromApiResponse, enrichEventPlayers } from '@endereye/core'
 import type { ApiEventData, EventPlayer } from '@endereye/core'
 import { getStrictlyActiveEvent } from '@/lib/events-config'
-import { getR2Object, putR2Object } from '@/lib/r2'
+import { getR2Object, putR2Object, deleteR2CachedViews } from '@/lib/r2'
 
 export async function GET(req: NextRequest) {
   const secret = req.headers.get('x-secret')
@@ -53,7 +52,7 @@ export async function GET(req: NextRequest) {
     putR2Object(`${event.prefix}.players.json`, updatedPlayers),
   ])
 
-  revalidateTag(`event:${event.prefix}`, 'max')
+  await deleteR2CachedViews(event.prefix)
 
   return NextResponse.json({ synced: true, currentRound: data.currentRound })
 }

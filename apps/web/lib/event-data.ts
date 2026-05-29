@@ -1,11 +1,10 @@
-import { cacheLife, cacheTag } from 'next/cache'
 import {
   computeHistoricalData,
   computeMCResults,
   computePlayerOdds,
   buildPlayerViews,
 } from '@endereye/core'
-import { getR2Object } from './r2'
+import { getR2Object, getR2CachedViews, putR2Object } from './r2'
 import type {
   EventContext,
   EventKind,
@@ -53,9 +52,6 @@ export async function getEventContext(
   prefix: string,
   qualifyCount?: number,
 ): Promise<EventContext | null> {
-  'use cache'
-  cacheLife('minutes')
-  cacheTag(`event:${prefix}`)
   const [eventData, playersData, rawOverrides] = await Promise.all([
     getR2Object<StoredEvent>(`${prefix}.event.json`),
     getR2Object<EventPlayer[]>(`${prefix}.players.json`),
@@ -106,17 +102,18 @@ export async function getEventViews(
   seed: number,
   qualifyCount?: number,
 ): Promise<{ eventData: EventContext; views: PlayerView[] } | null> {
-  'use cache'
-  cacheLife('minutes')
-  cacheTag(`event:${prefix}`)
-
   const eventData = await getEventContext(kind, season, prefix, qualifyCount)
   if (!eventData) return null
+
+  const cached = await getR2CachedViews(prefix, seed)
+  if (cached) return { eventData, views: cached }
 
   const ctx = computeHistoricalData(eventData, seed)
   const mcResults = computeMCResults(ctx, 20000)
   const odds = computePlayerOdds(ctx, mcResults)
   const views = buildPlayerViews(ctx, odds)
+
+  await putR2Object(`cache/views/${prefix}/${seed}.json`, views)
 
   return { eventData, views }
 }

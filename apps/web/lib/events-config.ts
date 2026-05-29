@@ -1,4 +1,3 @@
-import { cacheLife, cacheTag } from 'next/cache'
 import { getR2Object, putR2Object } from './r2'
 
 export interface R2EventConfig {
@@ -51,9 +50,6 @@ function isVisible(e: R2EventConfig): boolean {
 }
 
 export async function getAllEvents(): Promise<EventConfig[]> {
-  'use cache'
-  cacheLife('max')
-  cacheTag('events-config')
   const r2 = await getR2EventsConfig()
   return (r2 ?? []).filter(isVisible).map(toEventConfig)
 }
