@@ -1,10 +1,10 @@
-interface Env {
+export interface Env {
   DASHBOARD_SECRET: string
   SITE_URL: string
 }
 
 export default {
-  async scheduled(_: ScheduledEvent, env: Env) {
+  async scheduled(_: ScheduledController, env: Env) {
     try {
       const res = await fetch(`${env.SITE_URL}/api/sync-event`, {
         headers: { 'x-secret': env.DASHBOARD_SECRET },
@@ -14,4 +14,4 @@ export default {
       console.error('sync-event fetch failed:', e)
     }
   },
-}
+} satisfies ExportedHandler<Env>
