@@ -8,12 +8,18 @@ import type { CareerEventSlice } from '@/lib/career-data'
 import { CareerHeader } from '@/app/views/CareerHeader'
 import { CareerClient } from '@/app/views/CareerClient'
 import { buildMeta } from '@/lib/og-metadata'
-import { fetchUser } from '@endereye/core'
+import { fetchUser, FetchError } from '@endereye/core'
 
 const UUID_RE = /^[0-9a-f]{32}$/i
 
 async function resolveUser(segment: string) {
-  const user = await fetchUser(segment)
+  let user
+  try {
+    user = await fetchUser(segment)
+  } catch (e) {
+    if (e instanceof FetchError) notFound()
+    throw e
+  }
   if (UUID_RE.test(segment) && user.nickname !== segment) {
     redirect(`/players/${user.nickname}`)
   }
