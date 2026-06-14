@@ -3,6 +3,7 @@ import { Geist_Mono, Raleway, Lora } from 'next/font/google'
 import localFont from 'next/font/local'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import { AnnouncementBanner } from '@/components/layout'
 import './globals.css'
 
 const minecraft = localFont({
@@ -73,6 +74,11 @@ export default function RootLayout({
       className={`h-full ${minecraft.variable} ${raleway.variable} ${lora.variable} ${geistMono.variable}`}
     >
       <body className="min-h-full flex flex-col bg-zinc-950">
+        <AnnouncementBanner
+          variant="warning"
+          label="Heads up: I (the developer) can't monitor Season 11 MSS live — if standings don't update, Season 11 LCQ will be back to normal!"
+          href="/live"
+        />
         <div className="flex-1">{children}</div>
         {modal}
         {process.env.VERCEL_ENV === 'production' && <Analytics />}

@@ -3,21 +3,23 @@ import Link from 'next/link'
 interface Props {
   label: string
   href: string
+  variant?: 'info' | 'warning'
 }
 
-export function AnnouncementBanner({ label, href }: Props) {
+export function AnnouncementBanner({ label, href, variant = 'info' }: Props) {
+  const styles =
+    variant === 'warning'
+      ? 'border-orange-800/60 bg-orange-950/50 text-orange-300 hover:text-orange-200 hover:bg-orange-950/70'
+      : 'border-indigo-900/80 bg-indigo-950/60 text-indigo-300 hover:text-indigo-200 hover:bg-indigo-950/80'
+  const dotColor = variant === 'warning' ? 'bg-orange-400' : 'bg-indigo-400'
+
   return (
-    <div className="w-full flex justify-center px-4 pt-4 pb-16 sm:pb-0">
-      <Link
-        href={href}
-        className="group w-full max-w-md flex items-center justify-center gap-2 px-4 py-2.5
-          rounded-xl border border-indigo-900/80 bg-indigo-950/60
-          text-indigo-300 hover:text-indigo-200 hover:bg-indigo-950/80
-          transition-colors"
-      >
-        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-        <span className="text-sm font-mono">{label}</span>
-      </Link>
-    </div>
+    <Link
+      href={href}
+      className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 border-b ${styles} transition-colors`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${dotColor} shrink-0`} />
+      <span className="text-sm font-mono">{label}</span>
+    </Link>
   )
 }
