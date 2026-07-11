@@ -21,18 +21,20 @@ export function HeroSection({
     month: 'long',
     day: 'numeric',
     year: 'numeric',
+    hour: 'numeric',
+    hour12: true,
     timeZone: 'America/New_York',
   })
 
   return (
     <main className="min-h-[calc(100vh-4rem)] flex flex-col">
-<section className="flex-1 flex flex-col items-center justify-center gap-8 px-6 text-center">
+      <section className="flex-1 flex flex-col items-center justify-center gap-8 px-6 text-center">
         <Ranked size={128} />
         {event ? (
           <>
             <div className="flex flex-col items-center gap-2">
               <h1 className="font-display text-4xl lg:text-6xl text-zinc-100">{event.label}</h1>
-              <p className="text-zinc-500">{dateLabel} · 11am ET</p>
+              <p className="text-zinc-500">{dateLabel}</p>
             </div>
             <Countdown target={event.startDate} isOver={isOver} />
           </>
