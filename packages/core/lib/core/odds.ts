@@ -6,11 +6,13 @@ import {
   calculateLobbyStats,
   canStillWinDeterministic,
   derivePlayerScenarios,
+  getAvailableScores,
   getClinchScore,
   getPlayerPower,
   isSafeAtNextCutDeterministic,
   runBatchSimulation,
   runMonteCarlo,
+  runMonteCarloWithFixedPlacements,
   runScenarioAnalysis,
   toSimPlayer,
 } from './simulation'
@@ -209,6 +211,134 @@ export function computePlayerOdds(
           ),
           power,
           ...computed,
+        },
+      ]
+    }),
+  )
+}
+
+// Client-side "what-if the current seed finished like this" recompute. `fixed`
+// maps uuid → 1-based finishing place in `ctx.currentRound`. Returns the same
+// shape as computePlayerOdds; falls back to it when `fixed` is empty or the
+// event is over. Survival/win probabilities come from a fixed-placement Monte
+// Carlo; clinch pill and cutDelta/status use the deterministic worst-case with
+// the pinned placements applied, over projected points.
+export function computeHypotheticalOdds(
+  ctx: EventContext,
+  fixed: Record<string, number>,
+  iterations = 5000,
+): Record<string, PlayerOdds> {
+  const { currentRound, brackets, players } = ctx
+  const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
+  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
+  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
+    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
+  )
+  const lastSeed = Math.max(...effectiveSchedule.map((c) => c.afterSeed))
+  const isOver = currentRound > lastSeed
+
+  const playerLookup = new Map(players.map((p) => [p.uuid, p]))
+  const alivePlayers = brackets
+    .filter((b) => !b.eliminated)
+    .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
+
+  if (isOver || currentRound < 1 || alivePlayers.length === 0 || Object.keys(fixed).length === 0) {
+    return computePlayerOdds(ctx)
+  }
+
+  // Only keep placements that reference a live player and a place within the field.
+  const cleanFixed: Record<string, number> = {}
+  const aliveUuids = new Set(alivePlayers.map((p) => p.uuid))
+  for (const [uuid, place] of Object.entries(fixed)) {
+    if (aliveUuids.has(uuid) && place >= 1 && place <= alivePlayers.length) cleanFixed[uuid] = place
+  }
+  if (Object.keys(cleanFixed).length === 0) return computePlayerOdds(ctx)
+
+  const seedScores = getAvailableScores(alivePlayers.length)
+  const projectedPoint = (uuid: string, basePoint: number) =>
+    cleanFixed[uuid] !== undefined ? basePoint + seedScores[cleanFixed[uuid] - 1] : basePoint
+
+  const mcResults = runMonteCarloWithFixedPlacements(
+    alivePlayers,
+    currentRound,
+    effectiveSchedule,
+    qualifyCount,
+    cleanFixed,
+    iterations,
+  )
+
+  const projectedAlive = alivePlayers.map((p) => ({ ...p, point: projectedPoint(p.uuid, p.point) }))
+  const sortedAlive = [...projectedAlive].sort((a, b) => b.point - a.point)
+  const nextCut = effectiveSchedule.find((c) => c.afterSeed >= currentRound)
+  const cutThresholdPoint = nextCut ? getCutThreshold(nextCut, sortedAlive) : 0
+  const atCutlineSeed = nextCut?.afterSeed === currentRound
+  const isZeroOutCut = nextCut !== undefined && 'rule' in nextCut && nextCut.rule === 'zero_out'
+  const lobbyStats = calculateLobbyStats(alivePlayers)
+
+  return Object.fromEntries(
+    brackets.map((bracket) => {
+      const simPlayer = toSimPlayer(playerLookup.get(bracket.uuid)!, bracket.point)
+      const power = getPlayerPower(simPlayer, currentRound, lobbyStats)
+      const projPoint = projectedPoint(bracket.uuid, bracket.point)
+
+      if (bracket.eliminated) {
+        return [
+          bracket.uuid,
+          {
+            uuid: bracket.uuid,
+            winProbability: 0,
+            survivalProbability: 0,
+            canStillWin: false,
+            isSafeAtNextCut: false,
+            clinchScore: null,
+            clinchPlace: null,
+            cutDelta: projPoint - cutThresholdPoint,
+            status: 'eliminated' as PlayerStatus,
+            power,
+          },
+        ]
+      }
+
+      const canStillWin = canStillWinDeterministic(
+        bracket.uuid,
+        alivePlayers,
+        currentRound,
+        effectiveSchedule,
+        qualifyCount,
+      )
+      const isSafeAtNextCut =
+        (atCutlineSeed || isZeroOutCut) &&
+        canStillWin &&
+        isSafeAtNextCutDeterministic(
+          bracket.uuid,
+          alivePlayers,
+          currentRound,
+          effectiveSchedule,
+          null,
+          cleanFixed,
+        )
+      const clinch = getClinchScore(
+        bracket.uuid,
+        alivePlayers,
+        currentRound,
+        effectiveSchedule,
+        cleanFixed,
+      )
+      const mc = mcResults[bracket.uuid]
+
+      return [
+        bracket.uuid,
+        {
+          uuid: bracket.uuid,
+          winProbability: mc?.winProbability ?? 0,
+          survivalProbability: mc?.survivalProbability ?? 0,
+          canStillWin,
+          isSafeAtNextCut,
+          clinchScore: clinch?.score ?? null,
+          clinchPlace: clinch?.place ?? null,
+          cutDelta: projPoint - cutThresholdPoint,
+          status: deriveStatus(bracket, isSafeAtNextCut, false),
+          power,
         },
       ]
     }),

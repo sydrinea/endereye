@@ -68,12 +68,62 @@ export function canStillWinDeterministic(
   return rank > 0 && rank <= targetRank
 }
 
+// Worst-case (for the target) distribution of the current seed when some players
+// are pinned to a known finishing place. `fixed` maps uuid → 1-based place.
+// The target — if not itself pinned — is given `targetScore` (or 0 if null),
+// then the remaining seed scores are handed to the free opponents so as to
+// overtake the target by the smallest possible margin.
+function applyFixedWorstCaseSeed(
+  state: SimPlayer[],
+  targetUuid: string,
+  fixed: Record<string, number>,
+  targetScore: number | null,
+): void {
+  const n = state.length
+  const scores = getAvailableScores(n)
+  const takenPlaces = new Set<number>()
+
+  for (const [uuid, place] of Object.entries(fixed)) {
+    if (place < 1 || place > n) continue
+    takenPlaces.add(place)
+    const p = state.find((x) => x.uuid === uuid)
+    if (p) p.point += scores[place - 1]
+  }
+
+  const avail = scores.filter((_, i) => !takenPlaces.has(i + 1)).sort((a, b) => a - b)
+  const targetFixed = targetUuid in fixed
+  const tIdx = state.findIndex((p) => p.uuid === targetUuid)
+
+  if (!targetFixed && tIdx !== -1) {
+    const ts = targetScore ?? 0
+    state[tIdx].point += ts
+    const k = avail.indexOf(ts)
+    if (k !== -1) avail.splice(k, 1)
+  }
+
+  const targetPts = tIdx !== -1 ? state[tIdx].point : Infinity
+  const freeOpps = state.filter((p) => p.uuid !== targetUuid && !(p.uuid in fixed))
+  const unassigned = [...freeOpps]
+
+  for (const p of [...unassigned]
+    .filter((p) => p.point <= targetPts)
+    .sort((a, b) => b.point - a.point)) {
+    const needed = targetPts + 1 - p.point
+    const idx = avail.findIndex((s) => s >= needed)
+    if (idx === -1) continue
+    p.point += avail.splice(idx, 1)[0]
+    unassigned.splice(unassigned.indexOf(p), 1)
+  }
+  for (const p of unassigned) p.point += avail.pop() ?? 0
+}
+
 export function isSafeAtNextCutDeterministic(
   targetUuid: string,
   players: SimPlayer[],
   currentRound: number,
   cuts: EliminationCut[],
   fixedNextScore: number | null = null,
+  fixed: Record<string, number> | null = null,
 ): boolean {
   const lastSeed = Math.max(...cuts.map((c) => c.afterSeed), currentRound)
   if (currentRound > lastSeed) return true
@@ -84,7 +134,9 @@ export function isSafeAtNextCutDeterministic(
   const tIdx = state.findIndex((p) => p.uuid === targetUuid)
   if (tIdx === -1) return false
 
-  if (fixedNextScore !== null) {
+  if (fixed && Object.keys(fixed).length > 0) {
+    applyFixedWorstCaseSeed(state, targetUuid, fixed, targetUuid in fixed ? null : fixedNextScore)
+  } else if (fixedNextScore !== null) {
     const scores = getAvailableScores(state.length)
     state[tIdx].point += fixedNextScore
     const otherScores = [...scores]
@@ -117,15 +169,20 @@ export function getClinchScore(
   players: SimPlayer[],
   currentRound: number,
   cuts: EliminationCut[],
+  fixed: Record<string, number> | null = null,
 ): { score: number; place: number | 'DNF' } | null {
   const nextCut = cuts.find((c) => c.afterSeed >= currentRound)
   if (!nextCut || nextCut.afterSeed !== currentRound) return null
-  if (isSafeAtNextCutDeterministic(targetUuid, players, currentRound, cuts, 0))
+  // The target's own result is already known — no clinch pill to show.
+  if (fixed && targetUuid in fixed) return null
+  if (isSafeAtNextCutDeterministic(targetUuid, players, currentRound, cuts, 0, fixed))
     return { score: 0, place: 'DNF' }
 
   const scores = getAvailableScores(players.length)
+  const takenPlaces = fixed ? new Set(Object.values(fixed)) : new Set<number>()
   for (let i = scores.length - 1; i >= 0; i--) {
-    if (isSafeAtNextCutDeterministic(targetUuid, players, currentRound, cuts, scores[i]))
+    if (takenPlaces.has(i + 1)) continue
+    if (isSafeAtNextCutDeterministic(targetUuid, players, currentRound, cuts, scores[i], fixed))
       return { score: scores[i], place: i + 1 }
   }
   return null

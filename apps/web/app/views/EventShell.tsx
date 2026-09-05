@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { createContext, useContext, useState, useEffect, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { RotateCw, Loader2 } from 'lucide-react'
+import { RotateCw, Loader2, FlaskConical } from 'lucide-react'
 import type { PlayerView, EventContext } from '@endereye/core'
 import { DashboardHeader } from '@/components/layout'
 import { Breadcrumbs, PlayerFilter } from '@/components/ui'
@@ -20,6 +20,8 @@ interface EventShellValue {
   removeFilter: (nick: string) => void
   allNicknames: string[]
   prefix: string
+  tryPlacements: boolean
+  setTryPlacements: (v: boolean) => void
 }
 
 const EventShellCtx = createContext<EventShellValue | null>(null)
@@ -78,6 +80,24 @@ function TabNav({ basePath, seed }: { basePath: string; seed: number }) {
         </Link>
       ))}
     </div>
+  )
+}
+
+function TryPlacementsButton({ active, onToggle }: { active: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-pressed={active}
+      aria-label="Try placements"
+      title="Try placements — local what-if for this seed"
+      className={`p-1.5 rounded-md border transition-colors cursor-pointer ${
+        active
+          ? 'bg-safe/10 border-safe/30 text-safe'
+          : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+      }`}
+    >
+      <FlaskConical size={16} />
+    </button>
   )
 }
 
@@ -142,6 +162,17 @@ export function EventShell({
 }) {
   const filterKey = `endereye:filter:${eventLabel}`
   const [filteredNicknames, setFilteredNicknames] = useState<string[]>([])
+  const [tryPlacements, setTryPlacements] = useState(false)
+  const pathname = usePathname()
+  const isStandingsTab = !pathname.endsWith('/analytics') && !pathname.includes('/players')
+
+  // Reset the what-if toggle when the viewed seed / event snapshot changes.
+  const resetKey = `${seed}:${eventData.currentRound}`
+  const [prevResetKey, setPrevResetKey] = useState(resetKey)
+  if (prevResetKey !== resetKey) {
+    setPrevResetKey(resetKey)
+    if (tryPlacements) setTryPlacements(false)
+  }
 
   useEffect(() => {
     try {
@@ -191,7 +222,12 @@ export function EventShell({
     removeFilter,
     allNicknames: views.map((v) => v.nickname),
     prefix,
+    tryPlacements,
+    setTryPlacements,
   }
+
+  const hypoEligible =
+    activeViews.length > 0 && activeViews.length <= 10 && seed + 1 <= 10 && isStandingsTab
 
   return (
     <EventShellCtx.Provider value={value}>
@@ -217,7 +253,15 @@ export function EventShell({
         <div className="max-w-7xl mx-auto px-4 flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2 mt-3">
             <TabNav basePath={basePath} seed={seed} />
-            <RefreshButton prefix={prefix} initialRound={eventData.currentRound} />
+            <div className="flex items-center gap-1">
+              {hypoEligible && (
+                <TryPlacementsButton
+                  active={tryPlacements}
+                  onToggle={() => setTryPlacements(!tryPlacements)}
+                />
+              )}
+              <RefreshButton prefix={prefix} initialRound={eventData.currentRound} />
+            </div>
           </div>
           <PlayerFilter
             players={views.map((v) => v.nickname)}

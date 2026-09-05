@@ -109,8 +109,7 @@ export function applyEliminationInplace(pool: SimPool, cut: EliminationCut): voi
   let aliveCount = 0
   for (let i = 0; i < pool.n; i++) if (pool.alive[i]) aliveCount++
 
-  const keepCount =
-    'rule' in cut ? Math.ceil(aliveCount / 2) : Math.min(cut.keepTop, aliveCount)
+  const keepCount = 'rule' in cut ? Math.ceil(aliveCount / 2) : Math.min(cut.keepTop, aliveCount)
   if (keepCount >= aliveCount) return
 
   // Find the kth-largest point value (threshold) using a partial selection
@@ -135,7 +134,7 @@ export function applyEliminationInplace(pool: SimPool, cut: EliminationCut): voi
 function kthLargest(vals: Float64Array, n: number, k: number): number {
   // Insertion sort the first k elements, then scan the rest
   // For tiny n (≤24) this is fine
-  let sorted = new Float64Array(k)
+  const sorted = new Float64Array(k)
   for (let i = 0; i < k; i++) sorted[i] = vals[i]
   sorted.sort().reverse() // ascending → reverse for descending; k is tiny
   for (let i = k; i < n; i++) {
@@ -192,7 +191,12 @@ export function runMonteCarlo(
       const idx = players.indexOf(sorted[r])
       winCount[idx] = iterations
     }
-    return toMCResults(players.map((p) => p.uuid), winCount, surviveCount, iterations)
+    return toMCResults(
+      players.map((p) => p.uuid),
+      winCount,
+      surviveCount,
+      iterations,
+    )
   }
 
   const pool = createSimPool(players, stats)
@@ -228,7 +232,128 @@ export function runMonteCarlo(
       for (let j = 0; j < n; j++) {
         if (pool.alive[j] && j !== i && pool.points[j] > pool.points[i]) rank++
       }
-      if (rank <= targetRank) { winCount[i]++; topCount++ }
+      if (rank <= targetRank) {
+        winCount[i]++
+        topCount++
+      }
+      if (topCount >= targetRank) break
+    }
+  }
+
+  return toMCResults(pool.uuids, winCount, surviveCount, iterations)
+}
+
+// Simulates the current round with some players pinned to a fixed finishing place.
+// `fixedByIdx[i]` is the 1-based place player i must finish in, or -1 if free.
+// No DNFs are modelled for this hypothetical round. `order` / `queue` are scratch
+// Int32Arrays of length ≥ pool.n, supplied by the caller to avoid per-iteration allocation.
+function simulateFixedRoundInplace(
+  pool: SimPool,
+  round: number,
+  fixedByIdx: Int32Array,
+  order: Int32Array,
+  queue: Int32Array,
+): void {
+  let count = 0
+  for (let i = 0; i < pool.n; i++) {
+    if (!pool.alive[i]) continue
+    pool.rankVals[count] =
+      pool.powerByRound[i * 11 + round] + (randomGaussian() * pool.variance[i]) / 3
+    pool.rankIdx[count] = i
+    count++
+  }
+  sortRankInplace(pool.rankIdx, pool.rankVals, count)
+
+  for (let k = 0; k < count; k++) order[k] = -1
+  let queueLen = 0
+  for (let k = 0; k < count; k++) {
+    const idx = pool.rankIdx[k]
+    const place = fixedByIdx[idx]
+    if (place >= 1 && place <= count && order[place - 1] === -1) {
+      order[place - 1] = idx
+    } else {
+      queue[queueLen++] = idx
+    }
+  }
+  let q = 0
+  for (let slot = 0; slot < count; slot++) {
+    if (order[slot] === -1) order[slot] = queue[q++]
+  }
+
+  const scores = getAvailableScores(count)
+  for (let slot = 0; slot < count; slot++) {
+    pool.points[order[slot]] += scores[slot] ?? 0
+  }
+}
+
+// Like runMonteCarlo, but pins the given players to fixed finishing places in the
+// current round (a "what-if the seed finished like this" hypothetical). `fixed`
+// maps uuid → 1-based place. An empty map delegates to runMonteCarlo.
+export function runMonteCarloWithFixedPlacements(
+  players: SimPlayer[],
+  currentRound: number,
+  cuts: EliminationCut[],
+  targetRank: number,
+  fixed: Record<string, number>,
+  iterations = 5000,
+): Record<string, MCResult> {
+  const fixedKeys = Object.keys(fixed)
+  if (fixedKeys.length === 0) {
+    return runMonteCarlo(players, currentRound, cuts, targetRank, iterations)
+  }
+
+  const n = players.length
+  const stats = calculateLobbyStats(players)
+  const lastSeed = cuts.length > 0 ? Math.max(...cuts.map((c) => c.afterSeed)) : currentRound - 1
+
+  if (currentRound > lastSeed) {
+    return runMonteCarlo(players, currentRound, cuts, targetRank, iterations)
+  }
+
+  const pool = createSimPool(players, stats)
+  const fixedByIdx = new Int32Array(n).fill(-1)
+  for (const [uuid, place] of Object.entries(fixed)) {
+    const idx = pool.uuidToIdx.get(uuid)
+    if (idx !== undefined) fixedByIdx[idx] = place
+  }
+
+  const winCount = new Int32Array(n)
+  const surviveCount = new Int32Array(n)
+  const nextCut = cuts.find((c) => c.afterSeed >= currentRound)
+  const order = new Int32Array(n)
+  const queue = new Int32Array(n)
+
+  for (let iter = 0; iter < iterations; iter++) {
+    pool.points.set(pool.basePoints)
+    pool.alive.fill(1)
+
+    for (let r = currentRound; r <= lastSeed; r++) {
+      if (r === currentRound) simulateFixedRoundInplace(pool, r, fixedByIdx, order, queue)
+      else simulateRoundInplace(pool, r)
+      const cut = cuts.find((c) => c.afterSeed === r)
+      if (cut) {
+        applyEliminationInplace(pool, cut)
+        if (cut === nextCut) {
+          for (let i = 0; i < n; i++) if (pool.alive[i]) surviveCount[i]++
+        }
+      }
+    }
+
+    if (!nextCut) {
+      for (let i = 0; i < n; i++) if (pool.alive[i]) surviveCount[i]++
+    }
+
+    let topCount = 0
+    for (let i = 0; i < n; i++) {
+      if (!pool.alive[i]) continue
+      let rank = 1
+      for (let j = 0; j < n; j++) {
+        if (pool.alive[j] && j !== i && pool.points[j] > pool.points[i]) rank++
+      }
+      if (rank <= targetRank) {
+        winCount[i]++
+        topCount++
+      }
       if (topCount >= targetRank) break
     }
   }
@@ -250,8 +375,9 @@ export function runFullHeatmapSimulation(
   // survivalCounts[i][cutSeed] = number of times player i survived past cutSeed
   // key 999 = final winner
   const cutSeeds = remainingCuts.map((c) => c.afterSeed)
-  const survivalCounts: Int32Array[] = Array.from({ length: n }, () =>
-    new Int32Array(cutSeeds.length + 1),
+  const survivalCounts: Int32Array[] = Array.from(
+    { length: n },
+    () => new Int32Array(cutSeeds.length + 1),
   )
 
   if (currentRound > lastSeed) {

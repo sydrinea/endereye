@@ -16,7 +16,13 @@ export {
   getClinchScore,
 } from './deterministic'
 export type { MCResult } from './monte-carlo'
-export { rankPlayers, simulateRound, runMonteCarlo, runFullHeatmapSimulation } from './monte-carlo'
+export {
+  rankPlayers,
+  simulateRound,
+  runMonteCarlo,
+  runMonteCarloWithFixedPlacements,
+  runFullHeatmapSimulation,
+} from './monte-carlo'
 export type { PlacementConstraint, SurvivalScenario, SharedRecord } from './scenarios'
 export {
   runBatchSimulation,

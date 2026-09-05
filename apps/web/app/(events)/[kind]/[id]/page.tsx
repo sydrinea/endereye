@@ -45,7 +45,7 @@ export default async function EventKindPage({
     <EventShell
       eventData={result.eventData}
       eventLabel={eventLabel}
-      live={event.slug === activeEvent?.slug}
+      live={event.slug === activeEvent?.slug && eventData.currentRound <= 10}
       basePath={`/${kind}/${id}`}
       prefix={prefix}
       seed={seed}
