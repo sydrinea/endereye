@@ -43,13 +43,28 @@ export function getAvailableScores(aliveCount: number): number[] {
 }
 
 /**
+ * The point total of the last player kept when `keepCount` survive from
+ * `sortedDesc` (a field already sorted by points, highest first) — i.e. the
+ * cutline. `keepCount` is clamped to the field size; 0 for an empty field.
+ *
+ * Shared by `applyElimination` here and `getCutThreshold` in `odds.ts` so the
+ * cutline is computed one way everywhere. The typed-array Monte Carlo path
+ * (`monte-carlo.ts`) has its own allocation-free version but keeps the same
+ * rule.
+ */
+export function cutThresholdPoints(sortedDesc: SimPlayer[], keepCount: number): number {
+  if (sortedDesc.length === 0) return 0
+  return sortedDesc[Math.min(keepCount - 1, sortedDesc.length - 1)]?.point ?? 0
+}
+
+/**
  * Applies one cut to a player list and returns the survivors.
  *
  * `zero_out` simply drops players on 0 points. Otherwise the field is sorted by
- * points and the score of the last keeper (`sorted[keepCount - 1]`) becomes the
- * threshold: everyone `>= threshold` survives. The `>=` is deliberate — a tie
- * on the cutline keeps *all* tied players, which can leave more than
- * `keepCount` alive. The typed-array path in `monte-carlo.ts` uses the same rule.
+ * points and everyone at or above `cutThresholdPoints` survives. The `>=` is
+ * deliberate — a tie on the cutline keeps *all* tied players, which can leave
+ * more than `keepCount` alive. The typed-array path in `monte-carlo.ts` uses
+ * the same rule.
  */
 export function applyElimination(players: SimPlayer[], cut: EliminationCut): SimPlayer[] {
   if (players.length === 0) return []
@@ -59,6 +74,6 @@ export function applyElimination(players: SimPlayer[], cut: EliminationCut): Sim
   const keepCount = getKeepCount(cut, players.length)
   if (keepCount >= sorted.length) return sorted
 
-  const threshold = sorted[keepCount - 1].point
+  const threshold = cutThresholdPoints(sorted, keepCount)
   return sorted.filter((p) => p.point >= threshold)
 }

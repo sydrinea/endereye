@@ -9,6 +9,7 @@
  * as knobs, not derived quantities.
  */
 import { EventPlayer } from '../context/event'
+import { mean } from '../utils'
 
 /** An `EventPlayer` plus their running event `point` total and derived `winRate`. */
 export type SimPlayer = EventPlayer & {
@@ -60,11 +61,6 @@ export function toSimPlayer(player: EventPlayer, point: number): SimPlayer {
     point,
     winRate: decisive > 0 ? player.wins / decisive : 0.5,
   }
-}
-
-/** Arithmetic mean. Local copy (no empty-array guard); callers here always pass non-empty arrays. */
-function mean(values: number[]): number {
-  return values.reduce((a, b) => a + b, 0) / values.length
 }
 
 /**

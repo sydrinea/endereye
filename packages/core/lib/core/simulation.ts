@@ -18,7 +18,7 @@ export {
   randomGaussian,
   createSimPool,
 } from './player-model'
-export { getAvailableScores, applyElimination, mssPhasePoints } from './scoring'
+export { getAvailableScores, applyElimination, cutThresholdPoints, mssPhasePoints } from './scoring'
 export {
   canStillWinDeterministic,
   isSafeAtNextCutDeterministic,

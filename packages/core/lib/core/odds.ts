@@ -10,11 +10,13 @@
  */
 import type { BracketEntry } from '../api/types'
 import { EventContext } from '../context/event'
+import { byUuid } from '../utils'
 import { getEffectiveSchedule, getKeepCount, type EliminationCut } from './config'
 import type { SimPlayer, SurvivalScenario, SharedRecord } from './simulation'
 import {
   calculateLobbyStats,
   canStillWinDeterministic,
+  cutThresholdPoints,
   derivePlayerScenarios,
   getAvailableScores,
   getClinchScore,
@@ -53,8 +55,7 @@ export interface PlayerOdds {
 /** Point total of the last surviving player at `cut`, given the field already sorted by points. */
 function getCutThreshold(cut: EliminationCut, sorted: SimPlayer[]): number {
   if ('rule' in cut && cut.rule === 'zero_out') return 1
-  const keepCount = getKeepCount(cut, sorted.length)
-  return sorted[Math.min(keepCount - 1, sorted.length - 1)]?.point ?? 0
+  return cutThresholdPoints(sorted, getKeepCount(cut, sorted.length))
 }
 
 /** Collapses the elimination / over / safe flags into a single display status. */
@@ -150,7 +151,7 @@ function computeFinishedOdds(
  * `null` once the event is done.
  */
 function mapAlivePlayers(ctx: EventContext): SimPlayer[] {
-  const playerLookup = new Map(ctx.players.map((p) => [p.uuid, p]))
+  const playerLookup = byUuid(ctx.players)
   return ctx.brackets
     .filter((b) => !b.eliminated)
     .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
@@ -203,7 +204,7 @@ export function computePlayerOdds(
 ): Record<string, PlayerOdds> {
   const { currentRound, brackets, players } = ctx
   const { qualifyCount, effectiveSchedule, isOver } = getEffectiveSchedule(ctx)
-  const playerLookup = new Map(players.map((p) => [p.uuid, p]))
+  const playerLookup = byUuid(players)
   const alivePlayers = mapAlivePlayers(ctx)
 
   // Clean + dedupe the pinned placements (see the doc comment above).

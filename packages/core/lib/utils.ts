@@ -6,6 +6,11 @@ export function mean(values: number[]): number {
   return values.reduce((a, b) => a + b) / values.length
 }
 
+/** Index a list of `{ uuid }` records by uuid. Later duplicates win, matching `new Map`. */
+export function byUuid<T extends { uuid: string }>(list: readonly T[]): Map<string, T> {
+  return new Map(list.map((item) => [item.uuid, item]))
+}
+
 /**
  * ROC AUC by direct pairwise comparison: the fraction of (winner, loser) pairs
  * the model ranks correctly, with ties counting half. 0 if either class is

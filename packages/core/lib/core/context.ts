@@ -7,6 +7,7 @@ import type { PlayerOdds } from './odds'
 import { EventContext, EventPlayer } from '../context/event'
 import { applyElimination, runFullHeatmapSimulation, toSimPlayer } from './simulation'
 import { BracketEntry } from '../api/types'
+import { byUuid } from '../utils'
 import { getEffectiveSchedule } from './config'
 
 /** A player row: their profile, bracket state, odds, and current/previous rank merged. */
@@ -31,8 +32,8 @@ export function calculatePoints(b: BracketEntry, seed: number): number {
  * later shouldn't show as eliminated at an earlier seed.
  */
 export function computeHistoricalData(data: EventContext, viewSeed: number): EventContext {
-  const bracketMap = new Map(data.brackets.map((b) => [b.uuid, b]))
-  const playerLookup = new Map(data.players.map((p) => [p.uuid, p]))
+  const bracketMap = byUuid(data.brackets)
+  const playerLookup = byUuid(data.players)
 
   const { effectiveSchedule } = getEffectiveSchedule(data)
 
@@ -71,7 +72,7 @@ export function buildPlayerViews(
   data: EventContext,
   playerOdds: Record<string, PlayerOdds>,
 ): PlayerView[] {
-  const playerLookup = new Map(data.players.map((p) => [p.uuid, p]))
+  const playerLookup = byUuid(data.players)
 
   const sorted = [...data.brackets].sort((a, b) => b.point - a.point || b.bonus - a.bonus)
 
@@ -97,7 +98,7 @@ export function runHeatmapSimulation(
   currentRound: number,
   iterations = 10000,
 ): Record<string, Record<number, number>> {
-  const playerLookup = new Map(data.players.map((p) => [p.uuid, p]))
+  const playerLookup = byUuid(data.players)
   const alivePlayers = data.brackets
     .filter((b) => !b.eliminated)
     .map((b) => {
