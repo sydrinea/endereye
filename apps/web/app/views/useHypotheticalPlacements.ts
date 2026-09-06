@@ -1,11 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  computeHistoricalData,
-  computeHypotheticalOdds,
-  getAvailableScores,
-} from '@endereye/core'
+import { computeHistoricalData, computePlayerOdds, getAvailableScores } from '@endereye/core'
 import type { EventContext, PlayerView } from '@endereye/core'
 import type { Status } from '@/components/ui'
 import { mapPill, mapStatus, survivalPct } from '@/lib/dashboard-utils'
@@ -97,7 +93,7 @@ export function useHypotheticalPlacements(
       }
       setComputing(true)
       const ctx = computeHistoricalData(eventData, seed)
-      const odds = computeHypotheticalOdds(ctx, fixed)
+      const odds = computePlayerOdds(ctx, { fixed })
       const seedScores = getAvailableScores(fieldSize)
       const next: Record<string, HypoOverlay> = {}
       for (const v of activeViews) {

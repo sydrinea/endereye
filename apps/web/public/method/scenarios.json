@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-05-28T05:54:51.270Z",
+  "generatedAt": "2026-09-06T18:18:46.331Z",
   "threat": {
-    "hitRate": 0.5555555555555556,
-    "baseline": 0.3545133297548756,
-    "lift": 0.20104222580067999,
-    "n": 9
+    "hitRate": 0.5,
+    "baseline": 0.2883985958409684,
+    "lift": 0.21160140415903161,
+    "n": 12
   },
   "survival": {
-    "hitRate": 0.8571428571428571,
-    "baseline": 0.6909710535888518,
-    "lift": 0.1661718035540053,
+    "hitRate": 0.7142857142857143,
+    "baseline": 0.6044562752637287,
+    "lift": 0.10982943902198561,
     "n": 7
   },
   "misses": [
@@ -17,9 +17,9 @@
       "type": "threat",
       "event": "MSS S7 seed7",
       "playerNickname": "7rowl",
-      "survP": 0.6986,
+      "survP": 0.7011,
       "constraintNickname": "vorbhfan3",
-      "constraintBound": 3,
+      "constraintBound": 2,
       "actualPlace": 10,
       "nAlive": 23
     },
@@ -27,17 +27,47 @@
       "type": "threat",
       "event": "LCQ S8 seed9",
       "playerNickname": "retropog",
-      "survP": 0.67705,
+      "survP": 0.67325,
       "constraintNickname": "KenanKardes",
       "constraintBound": 2,
       "actualPlace": 7,
       "nAlive": 8
     },
     {
+      "type": "threat",
+      "event": "LCQ S9 seed7",
+      "playerNickname": "v_strid",
+      "survP": 0.6821,
+      "constraintNickname": "yjako",
+      "constraintBound": 2,
+      "actualPlace": 11,
+      "nAlive": 29
+    },
+    {
+      "type": "threat",
+      "event": "LCQ S9 seed8",
+      "playerNickname": "ANJOUU",
+      "survP": 0.77845,
+      "constraintNickname": "yjako",
+      "constraintBound": 3,
+      "actualPlace": 7,
+      "nAlive": 10
+    },
+    {
+      "type": "survival",
+      "event": "LCQ S9 seed9",
+      "playerNickname": "yjako",
+      "survP": 0.1367,
+      "constraintNickname": "Pinne",
+      "constraintBound": 7,
+      "actualPlace": 2,
+      "nAlive": 8
+    },
+    {
       "type": "survival",
       "event": "MSS S9 seed9",
       "playerNickname": "BlazeMind",
-      "survP": 0.3123,
+      "survP": 0.2995,
       "constraintNickname": "silverrruns",
       "constraintBound": 5,
       "actualPlace": 1,
@@ -45,19 +75,9 @@
     },
     {
       "type": "threat",
-      "event": "MSS S9 seed9",
-      "playerNickname": "BeefSalad",
-      "survP": 0.71325,
-      "constraintNickname": "nEmerald",
-      "constraintBound": 3,
-      "actualPlace": 6,
-      "nAlive": 8
-    },
-    {
-      "type": "threat",
       "event": "LCQ S10 seed7",
       "playerNickname": "nahhann",
-      "survP": 0.6657,
+      "survP": 0.66805,
       "constraintNickname": "vorbhfan3",
       "constraintBound": 3,
       "actualPlace": 8,
@@ -65,23 +85,13 @@
     },
     {
       "type": "threat",
-      "event": "MSS S10 seed7",
-      "playerNickname": "Pinne",
-      "survP": 0.88715,
-      "constraintNickname": "retropog",
-      "constraintBound": 7,
-      "actualPlace": 18,
-      "nAlive": 27
-    },
-    {
-      "type": "threat",
-      "event": "MSS S10 seed7",
-      "playerNickname": "Pinne",
-      "survP": 0.892,
-      "constraintNickname": "retropog",
-      "constraintBound": 5,
-      "actualPlace": 18,
-      "nAlive": 27
+      "event": "LCQ S11 seed9",
+      "playerNickname": "NoHacsJustRoblox",
+      "survP": 0.8213,
+      "constraintNickname": "ulsahinn",
+      "constraintBound": 3,
+      "actualPlace": 4,
+      "nAlive": 8
     }
   ]
 }

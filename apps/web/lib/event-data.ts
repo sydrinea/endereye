@@ -110,7 +110,7 @@ export async function getEventViews(
 
   const ctx = computeHistoricalData(eventData, seed)
   const mcResults = computeMCResults(ctx, 20000)
-  const odds = computePlayerOdds(ctx, mcResults)
+  const odds = computePlayerOdds(ctx, { externalMCResults: mcResults })
   const views = buildPlayerViews(ctx, odds)
 
   await putR2Object(`cache/views/${prefix}/${seed}.json`, views)

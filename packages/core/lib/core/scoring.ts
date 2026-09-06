@@ -1,4 +1,4 @@
-import type { EliminationCut } from './config'
+import { getKeepCount, type EliminationCut } from './config'
 import type { SimPlayer } from './player-model'
 
 export function mssPhasePoints(rank: number): number {
@@ -27,7 +27,7 @@ export function applyElimination(players: SimPlayer[], cut: EliminationCut): Sim
   if ('rule' in cut && cut.rule === 'zero_out') return players.filter((p) => p.point > 0)
 
   const sorted = [...players].sort((a, b) => b.point - a.point)
-  const keepCount = 'rule' in cut ? Math.ceil(players.length / 2) : cut.keepTop
+  const keepCount = getKeepCount(cut, players.length)
   if (keepCount >= sorted.length) return sorted
 
   const threshold = sorted[keepCount - 1].point

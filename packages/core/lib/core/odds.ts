@@ -1,7 +1,7 @@
 import type { BracketEntry } from '../api/types'
 import { EventContext } from '../context/event'
-import { ELIMINATION_SCHEDULE, EliminationCut, QUALIFY_COUNT } from './config'
-import type { SimPlayer } from './simulation'
+import { getEffectiveSchedule, getKeepCount, type EliminationCut } from './config'
+import type { SimPlayer, SurvivalScenario, SharedRecord } from './simulation'
 import {
   calculateLobbyStats,
   canStillWinDeterministic,
@@ -12,8 +12,6 @@ import {
   isSafeAtNextCutDeterministic,
   runBatchSimulation,
   runMonteCarlo,
-  runMonteCarloWithFixedPlacements,
-  runScenarioAnalysis,
   toSimPlayer,
 } from './simulation'
 import type { MCResult } from './monte-carlo'
@@ -35,11 +33,9 @@ export interface PlayerOdds {
 }
 
 function getCutThreshold(cut: EliminationCut, sorted: SimPlayer[]): number {
-  if ('rule' in cut)
-    return cut.rule === 'zero_out'
-      ? 1
-      : (sorted[Math.min(Math.ceil(sorted.length / 2) - 1, sorted.length - 1)]?.point ?? 0)
-  return sorted[Math.min(cut.keepTop - 1, sorted.length - 1)]?.point ?? 0
+  if ('rule' in cut && cut.rule === 'zero_out') return 1
+  const keepCount = getKeepCount(cut, sorted.length)
+  return sorted[Math.min(keepCount - 1, sorted.length - 1)]?.point ?? 0
 }
 
 function deriveStatus(
@@ -61,6 +57,7 @@ function computeActiveOdds(
   mcResults: Record<string, { winProbability: number; survivalProbability: number }>,
   qualifyCount: number,
   cuts: EliminationCut[],
+  fixed: Record<string, number>,
 ): Pick<
   PlayerOdds,
   | 'canStillWin'
@@ -70,15 +67,22 @@ function computeActiveOdds(
   | 'winProbability'
   | 'survivalProbability'
 > {
-  const canStillWin = canStillWinDeterministic(uuid, alivePlayers, currentRound, cuts, qualifyCount)
+  const canStillWin = canStillWinDeterministic(
+    uuid,
+    alivePlayers,
+    currentRound,
+    cuts,
+    qualifyCount,
+    fixed,
+  )
   const nextCut = cuts.find((c) => c.afterSeed >= currentRound)
   const atCutlineSeed = nextCut?.afterSeed === currentRound
   const isZeroOutCut = nextCut !== undefined && 'rule' in nextCut && nextCut.rule === 'zero_out'
   const isSafeAtNextCut =
     (atCutlineSeed || isZeroOutCut) &&
     canStillWin &&
-    isSafeAtNextCutDeterministic(uuid, alivePlayers, currentRound, cuts)
-  const clinch = getClinchScore(uuid, alivePlayers, currentRound, cuts)
+    isSafeAtNextCutDeterministic(uuid, alivePlayers, currentRound, cuts, null, fixed)
+  const clinch = getClinchScore(uuid, alivePlayers, currentRound, cuts, fixed)
   const mc = mcResults[uuid]
   return {
     canStillWin,
@@ -112,54 +116,99 @@ function computeFinishedOdds(
   }
 }
 
+// Maps every non-eliminated bracket to a SimPlayer, regardless of whether the
+// event is over — callers that care (computePlayerOdds, computeMCResults)
+// check `isOver` themselves; `buildAlivePlayers` below layers that check on
+// top for callers (the scenario functions) that want `null` once it's over.
+function mapAlivePlayers(ctx: EventContext): SimPlayer[] {
+  const playerLookup = new Map(ctx.players.map((p) => [p.uuid, p]))
+  return ctx.brackets
+    .filter((b) => !b.eliminated)
+    .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
+}
+
+function buildAlivePlayers(ctx: EventContext, isOver: boolean): SimPlayer[] | null {
+  return isOver ? null : mapAlivePlayers(ctx)
+}
+
 export function computeMCResults(
   ctx: EventContext,
   iterations = 20000,
 ): Record<string, MCResult> {
-  const { currentRound, brackets, players } = ctx
-  const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
-  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
-  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
-    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
-  )
-  const lastSeed = Math.max(...effectiveSchedule.map((c) => c.afterSeed))
-  const isOver = currentRound > lastSeed
-  const playerLookup = new Map(players.map((p) => [p.uuid, p]))
-  const alivePlayers = brackets
-    .filter((b) => !b.eliminated)
-    .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
+  const { currentRound } = ctx
+  const { qualifyCount, effectiveSchedule, isOver } = getEffectiveSchedule(ctx)
+  const alivePlayers = mapAlivePlayers(ctx)
   if (isOver || currentRound < 1 || alivePlayers.length === 0) return {}
-  return runMonteCarlo(alivePlayers, currentRound, effectiveSchedule, qualifyCount, iterations)
+  return runMonteCarlo(alivePlayers, currentRound, effectiveSchedule, qualifyCount, { iterations })
 }
 
+// The single entry point for computing every player's odds. `opts.fixed`
+// pins some players to a known finishing place in `ctx.currentRound` (a
+// client-side "what-if the seed finished like this" recompute) — this used
+// to be a separate top-level function (computeHypotheticalOdds) that
+// re-derived most of this same logic by hand and drifted from it: it never
+// passed the pinned placements into canStillWinDeterministic, so a player
+// mathematically eliminated by their own pinned placement could still show
+// `canStillWin: true`. Folding it in here means both paths share one
+// implementation.
 export function computePlayerOdds(
   ctx: EventContext,
-  externalMCResults?: Record<string, MCResult>,
+  opts?: {
+    fixed?: Record<string, number>
+    externalMCResults?: Record<string, MCResult>
+    iterations?: number
+  },
 ): Record<string, PlayerOdds> {
   const { currentRound, brackets, players } = ctx
-  const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
-  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
-  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
-    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
-  )
-  const lastSeed = Math.max(...effectiveSchedule.map((c) => c.afterSeed))
-  const isOver = currentRound > lastSeed
-
+  const { qualifyCount, effectiveSchedule, isOver } = getEffectiveSchedule(ctx)
   const playerLookup = new Map(players.map((p) => [p.uuid, p]))
-  const alivePlayers = brackets
-    .filter((b) => !b.eliminated)
-    .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
+  const alivePlayers = mapAlivePlayers(ctx)
 
-  const sortedAlive = [...alivePlayers].sort((a, b) => b.point - a.point)
+  // Clean + dedupe the pinned placements: each must reference a live player
+  // and a place within the field, and no two players may claim the same
+  // place (previously unvalidated — the MC path and the projected-points
+  // path resolved a collision differently, so cutDelta/status could disagree
+  // with winProbability for the same hypothetical).
+  const cleanFixed: Record<string, number> = {}
+  if (opts?.fixed && !isOver && currentRound >= 1 && alivePlayers.length > 0) {
+    const aliveUuids = new Set(alivePlayers.map((p) => p.uuid))
+    const takenPlaces = new Set<number>()
+    for (const [uuid, place] of Object.entries(opts.fixed)) {
+      if (
+        aliveUuids.has(uuid) &&
+        place >= 1 &&
+        place <= alivePlayers.length &&
+        !takenPlaces.has(place)
+      ) {
+        cleanFixed[uuid] = place
+        takenPlaces.add(place)
+      }
+    }
+  }
+  const hasFixed = Object.keys(cleanFixed).length > 0
+
+  const seedScores = hasFixed ? getAvailableScores(alivePlayers.length) : null
+  const projectedPoint = (uuid: string, basePoint: number) =>
+    hasFixed && cleanFixed[uuid] !== undefined ? basePoint + seedScores![cleanFixed[uuid] - 1] : basePoint
+
+  const sortedAlive = [...alivePlayers]
+    .map((p) => (hasFixed ? { ...p, point: projectedPoint(p.uuid, p.point) } : p))
+    .sort((a, b) => b.point - a.point)
   const nextCut = effectiveSchedule.find((c) => c.afterSeed >= currentRound)
   const cutThresholdPoint =
     nextCut && alivePlayers.length > 0 ? getCutThreshold(nextCut, sortedAlive) : 0
 
-  const mcResults =
-    externalMCResults !== undefined
-      ? externalMCResults
+  const mcResults = hasFixed
+    ? runMonteCarlo(alivePlayers, currentRound, effectiveSchedule, qualifyCount, {
+        fixed: cleanFixed,
+        iterations: opts?.iterations,
+      })
+    : opts?.externalMCResults !== undefined
+      ? opts.externalMCResults
       : !isOver && currentRound >= 1 && alivePlayers.length > 0
-        ? runMonteCarlo(alivePlayers, currentRound, effectiveSchedule, qualifyCount)
+        ? runMonteCarlo(alivePlayers, currentRound, effectiveSchedule, qualifyCount, {
+            iterations: opts?.iterations,
+          })
         : {}
 
   const qualifiedUuids = isOver
@@ -177,6 +226,7 @@ export function computePlayerOdds(
     brackets.map((bracket) => {
       const simPlayer = toSimPlayer(playerLookup.get(bracket.uuid)!, bracket.point)
       const power = getPlayerPower(simPlayer, currentRound, lobbyStats)
+      const projPoint = projectedPoint(bracket.uuid, bracket.point)
 
       const computed = bracket.eliminated
         ? {
@@ -196,13 +246,14 @@ export function computePlayerOdds(
               mcResults,
               qualifyCount,
               effectiveSchedule,
+              cleanFixed,
             )
 
       return [
         bracket.uuid,
         {
           uuid: bracket.uuid,
-          cutDelta: bracket.point - cutThresholdPoint,
+          cutDelta: projPoint - cutThresholdPoint,
           status: deriveStatus(
             bracket,
             computed.isSafeAtNextCut,
@@ -217,210 +268,47 @@ export function computePlayerOdds(
   )
 }
 
-// Client-side "what-if the current seed finished like this" recompute. `fixed`
-// maps uuid → 1-based finishing place in `ctx.currentRound`. Returns the same
-// shape as computePlayerOdds; falls back to it when `fixed` is empty or the
-// event is over. Survival/win probabilities come from a fixed-placement Monte
-// Carlo; clinch pill and cutDelta/status use the deterministic worst-case with
-// the pinned placements applied, over projected points.
-export function computeHypotheticalOdds(
-  ctx: EventContext,
-  fixed: Record<string, number>,
-  iterations = 5000,
-): Record<string, PlayerOdds> {
-  const { currentRound, brackets, players } = ctx
-  const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
-  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
-  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
-    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
-  )
-  const lastSeed = Math.max(...effectiveSchedule.map((c) => c.afterSeed))
-  const isOver = currentRound > lastSeed
-
-  const playerLookup = new Map(players.map((p) => [p.uuid, p]))
-  const alivePlayers = brackets
-    .filter((b) => !b.eliminated)
-    .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
-
-  if (isOver || currentRound < 1 || alivePlayers.length === 0 || Object.keys(fixed).length === 0) {
-    return computePlayerOdds(ctx)
-  }
-
-  // Only keep placements that reference a live player and a place within the field.
-  const cleanFixed: Record<string, number> = {}
-  const aliveUuids = new Set(alivePlayers.map((p) => p.uuid))
-  for (const [uuid, place] of Object.entries(fixed)) {
-    if (aliveUuids.has(uuid) && place >= 1 && place <= alivePlayers.length) cleanFixed[uuid] = place
-  }
-  if (Object.keys(cleanFixed).length === 0) return computePlayerOdds(ctx)
-
-  const seedScores = getAvailableScores(alivePlayers.length)
-  const projectedPoint = (uuid: string, basePoint: number) =>
-    cleanFixed[uuid] !== undefined ? basePoint + seedScores[cleanFixed[uuid] - 1] : basePoint
-
-  const mcResults = runMonteCarloWithFixedPlacements(
-    alivePlayers,
-    currentRound,
-    effectiveSchedule,
-    qualifyCount,
-    cleanFixed,
-    iterations,
-  )
-
-  const projectedAlive = alivePlayers.map((p) => ({ ...p, point: projectedPoint(p.uuid, p.point) }))
-  const sortedAlive = [...projectedAlive].sort((a, b) => b.point - a.point)
-  const nextCut = effectiveSchedule.find((c) => c.afterSeed >= currentRound)
-  const cutThresholdPoint = nextCut ? getCutThreshold(nextCut, sortedAlive) : 0
-  const atCutlineSeed = nextCut?.afterSeed === currentRound
-  const isZeroOutCut = nextCut !== undefined && 'rule' in nextCut && nextCut.rule === 'zero_out'
-  const lobbyStats = calculateLobbyStats(alivePlayers)
-
-  return Object.fromEntries(
-    brackets.map((bracket) => {
-      const simPlayer = toSimPlayer(playerLookup.get(bracket.uuid)!, bracket.point)
-      const power = getPlayerPower(simPlayer, currentRound, lobbyStats)
-      const projPoint = projectedPoint(bracket.uuid, bracket.point)
-
-      if (bracket.eliminated) {
-        return [
-          bracket.uuid,
-          {
-            uuid: bracket.uuid,
-            winProbability: 0,
-            survivalProbability: 0,
-            canStillWin: false,
-            isSafeAtNextCut: false,
-            clinchScore: null,
-            clinchPlace: null,
-            cutDelta: projPoint - cutThresholdPoint,
-            status: 'eliminated' as PlayerStatus,
-            power,
-          },
-        ]
-      }
-
-      const canStillWin = canStillWinDeterministic(
-        bracket.uuid,
-        alivePlayers,
-        currentRound,
-        effectiveSchedule,
-        qualifyCount,
-      )
-      const isSafeAtNextCut =
-        (atCutlineSeed || isZeroOutCut) &&
-        canStillWin &&
-        isSafeAtNextCutDeterministic(
-          bracket.uuid,
-          alivePlayers,
-          currentRound,
-          effectiveSchedule,
-          null,
-          cleanFixed,
-        )
-      const clinch = getClinchScore(
-        bracket.uuid,
-        alivePlayers,
-        currentRound,
-        effectiveSchedule,
-        cleanFixed,
-      )
-      const mc = mcResults[bracket.uuid]
-
-      return [
-        bracket.uuid,
-        {
-          uuid: bracket.uuid,
-          winProbability: mc?.winProbability ?? 0,
-          survivalProbability: mc?.survivalProbability ?? 0,
-          canStillWin,
-          isSafeAtNextCut,
-          clinchScore: clinch?.score ?? null,
-          clinchPlace: clinch?.place ?? null,
-          cutDelta: projPoint - cutThresholdPoint,
-          status: deriveStatus(bracket, isSafeAtNextCut, false),
-          power,
-        },
-      ]
-    }),
-  )
-}
-
-function buildAlivePlayers(ctx: EventContext, effectiveSchedule: EliminationCut[]) {
-  const { currentRound, brackets, players } = ctx
-  const lastSeed = Math.max(...effectiveSchedule.map((c) => c.afterSeed))
-  if (currentRound > lastSeed) return null
-  const playerLookup = new Map(players.map((p) => [p.uuid, p]))
-  return brackets
-    .filter((b) => !b.eliminated)
-    .map((b) => toSimPlayer(playerLookup.get(b.uuid)!, b.point))
-}
-
-export function computeSurvivalScenarios(
-  ctx: EventContext,
-  targetUuid: string,
-): import('./simulation').SurvivalScenario[] {
-  const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
-  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
-  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
-    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
-  )
-  const alivePlayers = buildAlivePlayers(ctx, effectiveSchedule)
-  if (!alivePlayers?.find((p) => p.uuid === targetUuid)) return []
-  return runScenarioAnalysis(
-    targetUuid,
-    alivePlayers,
-    ctx.currentRound,
-    effectiveSchedule,
-  ).scenarios
-}
-
-// Opaque handle — do not construct directly; use buildScenarioRecords / deriveScenariosFromRecords
+// Handle for a shared simulation batch — do not construct directly; produced
+// by buildScenarioRecords and consumed by deriveScenariosFromRecords, so a
+// caller can run the (expensive) batch simulation once per seed and then
+// query it once per player without re-simulating.
 export interface ScenarioRecords {
-  _records: import('./simulation').SharedRecord[]
-  _players: SimPlayer[]
+  records: SharedRecord[]
+  players: SimPlayer[]
 }
 
 export function buildScenarioRecords(ctx: EventContext): ScenarioRecords | null {
-  const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
-  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
-  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
-    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
-  )
-  const alivePlayers = buildAlivePlayers(ctx, effectiveSchedule)
+  const { effectiveSchedule, isOver } = getEffectiveSchedule(ctx)
+  const alivePlayers = buildAlivePlayers(ctx, isOver)
   if (!alivePlayers || alivePlayers.length === 0) return null
   const records = runBatchSimulation(alivePlayers, ctx.currentRound, effectiveSchedule)
-  return { _records: records, _players: alivePlayers }
+  return { records, players: alivePlayers }
 }
 
 export function deriveScenariosFromRecords(
   targetUuid: string,
   prepared: ScenarioRecords,
   options?: { threatMode?: boolean },
-): { scenarios: import('./simulation').SurvivalScenario[]; baseProbability: number } {
-  return derivePlayerScenarios(targetUuid, prepared._records, prepared._players, options)
+): { scenarios: SurvivalScenario[]; baseProbability: number } {
+  return derivePlayerScenarios(targetUuid, prepared.records, prepared.players, options)
 }
 
+// Unlike buildScenarioRecords/deriveScenariosFromRecords, this can't share a
+// batch across players: forcing `targetUuid` to DNF the round means the
+// simulation itself is different per target, so there's nothing to build
+// once and reuse. This one-shot form is the appropriate shape for that.
 export function computeFailureScenarios(
   ctx: EventContext,
   targetUuid: string,
   threatMode = false,
-): { scenarios: import('./simulation').SurvivalScenario[]; dnfSurvivalProbability: number } {
-  const qualifyCount = ctx.qualifyCount ?? QUALIFY_COUNT
-  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
-  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
-    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
-  )
-  const alivePlayers = buildAlivePlayers(ctx, effectiveSchedule)
+): { scenarios: SurvivalScenario[]; dnfSurvivalProbability: number } {
+  const { effectiveSchedule, isOver } = getEffectiveSchedule(ctx)
+  const alivePlayers = buildAlivePlayers(ctx, isOver)
   if (!alivePlayers?.find((p) => p.uuid === targetUuid))
     return { scenarios: [], dnfSurvivalProbability: 0 }
-  const { scenarios, baseProbability } = runScenarioAnalysis(
-    targetUuid,
-    alivePlayers,
-    ctx.currentRound,
-    effectiveSchedule,
-    20000,
-    true,
+  const records = runBatchSimulation(alivePlayers, ctx.currentRound, effectiveSchedule, 20000, targetUuid)
+  const { scenarios, baseProbability } = derivePlayerScenarios(targetUuid, records, alivePlayers, {
     threatMode,
-  )
+  })
   return { scenarios, dnfSurvivalProbability: baseProbability }
 }

@@ -1,15 +1,28 @@
 export { mean } from './utils'
-export * from './api/types'
-export * from './api/fetch'
 
-export * from './core/config'
-export * from './core/simulation'
-export * from './core/odds'
-export type { MCResult } from './core/monte-carlo'
-export * from './core/context'
+export type { Match, BracketEntry, EventKind } from './api/types'
+export { fetchCurrentSeason, fetchUser, fetchMatch, fetchPhaseLeaderboard } from './api/fetch'
 
-export * from './context/event'
+export { MAX_SCORE_PER_SEED, QUALIFY_COUNT, ELIMINATION_SCHEDULE } from './core/config'
+export { getAvailableScores, mssPhasePoints } from './core/simulation'
+export type { MCResult, SurvivalScenario } from './core/simulation'
 
-export * from './players'
-export * from './errors'
-export * from './events/build'
+export type { PlayerOdds, ScenarioRecords } from './core/odds'
+export {
+  computeMCResults,
+  computePlayerOdds,
+  buildScenarioRecords,
+  deriveScenariosFromRecords,
+  computeFailureScenarios,
+} from './core/odds'
+
+export type { PlayerView } from './core/context'
+export { computeHistoricalData, buildPlayerViews, runHeatmapSimulation } from './core/context'
+
+export type { EventPlayer, OverrideMap, RawOverrides, EventContext } from './context/event'
+
+export { enrichEventPlayers } from './players'
+export { FetchError, AppError } from './errors'
+
+export type { ApiEventData } from './events/build'
+export { buildEvent, buildEventFromApiResponse, computeBonusMap } from './events/build'

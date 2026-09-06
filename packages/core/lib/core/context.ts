@@ -2,7 +2,7 @@ import type { PlayerOdds } from './odds'
 import { EventContext, EventPlayer } from '../context/event'
 import { applyElimination, runFullHeatmapSimulation, toSimPlayer } from './simulation'
 import { BracketEntry } from '../api/types'
-import { ELIMINATION_SCHEDULE, QUALIFY_COUNT } from './config'
+import { getEffectiveSchedule } from './config'
 
 export type PlayerView = EventPlayer &
   BracketEntry &
@@ -19,11 +19,7 @@ export function computeHistoricalData(data: EventContext, viewSeed: number): Eve
   const bracketMap = new Map(data.brackets.map((b) => [b.uuid, b]))
   const playerLookup = new Map(data.players.map((p) => [p.uuid, p]))
 
-  const qualifyCount = data.qualifyCount ?? QUALIFY_COUNT
-  const baseLast = ELIMINATION_SCHEDULE[ELIMINATION_SCHEDULE.length - 1]
-  const effectiveSchedule = ELIMINATION_SCHEDULE.map((cut) =>
-    cut === baseLast && 'keepTop' in cut ? { ...cut, keepTop: qualifyCount } : cut,
-  )
+  const { effectiveSchedule } = getEffectiveSchedule(data)
 
   let surviving = new Set(data.brackets.map((b) => b.uuid))
 
@@ -85,11 +81,6 @@ export function runHeatmapSimulation(
       if (!p) throw new Error(`Player ${b.uuid} not found in players list`)
       return toSimPlayer(p, b.point)
     })
-  return runFullHeatmapSimulation(
-    alivePlayers,
-    currentRound,
-    ELIMINATION_SCHEDULE,
-    iterations,
-    data.qualifyCount,
-  )
+  const { effectiveSchedule, qualifyCount } = getEffectiveSchedule(data)
+  return runFullHeatmapSimulation(alivePlayers, currentRound, effectiveSchedule, iterations, qualifyCount)
 }

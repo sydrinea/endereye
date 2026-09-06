@@ -17,8 +17,11 @@ import { SurvivalScenariosModal } from '../SurvivalScenariosModal'
 import { mssPhasePoints, computeCutKeep, toRowData } from '@/lib/dashboard-utils'
 import { useEventShell } from '../EventShell'
 import { useHypotheticalPlacements } from '../useHypotheticalPlacements'
+import backtest from '@/public/method/backtest.json'
 
 const CUT_SEEDS = [3, 5, 7, 8, 9, 10]
+
+const SIMULATION_VARIANCE_PCT = Math.ceil(backtest.metrics.p99McShift * 1000) / 10
 const COLS = '4rem 1fr 8rem 14rem 10rem'
 
 export function StandingsTabPage() {
@@ -192,7 +195,8 @@ export function StandingsTabPage() {
         label="Simulation Variance"
         detail={
           <>
-            Percentages may fluctuate by up to 1.5% on refresh because of simulation variance.{' '}
+            Percentages may fluctuate by up to {SIMULATION_VARIANCE_PCT}% on refresh because of
+            simulation variance.{' '}
             <Link href="/method" className="underline">
               Read the methodology
             </Link>

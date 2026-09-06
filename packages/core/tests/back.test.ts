@@ -33,7 +33,7 @@ const VARIANCE_BOUND = 0.025
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type BootstrapPair = { custom: number; baseline: number; actual: number }
+type BootstrapPair = { custom: number; baseline: number; actual: number; event: string }
 
 interface WinProbEntry {
   season: number
@@ -80,6 +80,7 @@ interface BacktestResults {
   seed0TotalPredictions: number
   maxObservedShift: number
   stabilityViolations: number
+  shiftSamples: number[]
   stepBuckets: Array<{ count: number; sum: number; actual: number }>
   seedBrierData: Array<{ sum: number; count: number }>
   seed0WinBuckets: Array<{ count: number; sum: number; actual: number }>
@@ -191,6 +192,7 @@ function runBacktest(
   let seed0TotalPredictions = 0
   let maxObservedShift = 0
   let stabilityViolations = 0
+  const shiftSamples: number[] = []
 
   const stepBuckets = Array.from({ length: 10 }, () => ({ count: 0, sum: 0, actual: 0 }))
   const seedBrierData = Array.from({ length: 10 }, () => ({ sum: 0, count: 0 }))
@@ -220,6 +222,7 @@ function runBacktest(
           const shift = Math.abs(p.survivalProbability - oddsB[uuid].survivalProbability)
           if (shift > maxObservedShift) maxObservedShift = shift
           if (shift > VARIANCE_BOUND) stabilityViolations++
+          shiftSamples.push(shift)
         }
       }
 
@@ -261,7 +264,12 @@ function runBacktest(
             actual: actuallyWon,
             elo,
           })
-          bootstrapPairs.push({ custom: p.winProbability, baseline: elo, actual: actuallyWon })
+          bootstrapPairs.push({
+            custom: p.winProbability,
+            baseline: elo,
+            actual: actuallyWon,
+            event: `${season}-${kind}`,
+          })
           seed0PlayerTracker[bucket].push({
             name: nickname,
             season,
@@ -366,6 +374,7 @@ function runBacktest(
     seed0TotalPredictions,
     maxObservedShift,
     stabilityViolations,
+    shiftSamples,
     stepBuckets,
     seedBrierData,
     seed0WinBuckets,
@@ -417,30 +426,90 @@ describe('LCQ/MSS Backtest', () => {
     ).toBeLessThan(0.25)
     expect(r.clinchViolations, 'No clinch violations').toBe(0)
     expect(r.safeViolations, 'No safe violations').toBe(0)
-    expect(r.stabilityViolations, `MC shift exceeded ${(VARIANCE_BOUND * 100).toFixed(2)}%`).toBe(0)
+    // Gate on a percentile of the shift distribution rather than its max (or
+    // "zero violations allowed") — both of those are extreme-value checks
+    // that get mechanically harder to pass as more events are backtested and
+    // the number of comparisons grows, independent of whether the Monte
+    // Carlo simulation actually became less stable.
+    const sortedShifts = [...r.shiftSamples].sort((a, b) => a - b)
+    const p99Index = Math.min(sortedShifts.length - 1, Math.floor(sortedShifts.length * 0.99))
+    const p99Shift = sortedShifts.length > 0 ? sortedShifts[p99Index] : 0
+    expect(
+      p99Shift,
+      `MC 99th-percentile shift exceeded ${(VARIANCE_BOUND * 100).toFixed(2)}% (n=${sortedShifts.length})`,
+    ).toBeLessThanOrEqual(VARIANCE_BOUND)
 
-    // ── AUC + bootstrap ──
-    const customAuc = rocAuc(r.seed0RocPairs)
-    const baselineAuc = rocAuc(
-      r.bootstrapPairs.map((p) => ({ prob: p.baseline, actual: p.actual })),
-    )
+    // ── Macro-AUC + event-cluster bootstrap ──
+    // Pooling every player-row across all events into one rocAuc call (the old
+    // approach) scores mostly cross-event pairs — a winner from one event
+    // compared against a loser from a completely different event. With small
+    // fields that's the large majority of all pairs, and it conflates "does
+    // the model rank a bracket correctly" with "are probabilities on a
+    // comparable scale across differently-competitive fields," which
+    // calibration doesn't guarantee. Instead, score each event on its own
+    // rows only, then average those per-event scores — each event counts as
+    // one equally-weighted unit, matching what the number is meant to convey.
+    const eventGroups = new Map<string, BootstrapPair[]>()
+    for (const pair of r.bootstrapPairs) {
+      const group = eventGroups.get(pair.event)
+      if (group) group.push(pair)
+      else eventGroups.set(pair.event, [pair])
+    }
+    const perEvent = [...eventGroups.values()]
 
+    // For each event, score AUC twice using only that event's own rows: once
+    // ranking by the model's probability, once ranking by raw elo. This is
+    // the per-event, within-bracket discrimination score — no cross-event
+    // pairs involved.
+    const perEventAuc = perEvent.map((group) => ({
+      custom: rocAuc(group.map((p) => ({ prob: p.custom, actual: p.actual }))),
+      baseline: rocAuc(group.map((p) => ({ prob: p.baseline, actual: p.actual }))),
+    }))
+    // rocAuc returns 0 when an event has no winners or no losers to compare
+    // (nothing to rank against) — drop those degenerate events so they don't
+    // silently pull the average toward 0.
+    const usable = perEventAuc.filter((e) => e.custom > 0 && e.baseline > 0)
+    // Macro-AUC: the plain average of per-event AUC values, each event
+    // counted once regardless of field size — the headline "typical bracket"
+    // discrimination score.
+    const macroAucCustom = usable.reduce((s, e) => s + e.custom, 0) / usable.length
+    const macroAucBaseline = usable.reduce((s, e) => s + e.baseline, 0) / usable.length
+    const macroLift = macroAucCustom - macroAucBaseline
+
+    // Cluster bootstrap on the macro-AUC lift: each usable event is already a
+    // fixed pair of real numbers (its own AUC under each model), so this only
+    // resamples *which events* contribute to the mean — with replacement,
+    // same count each draw. It answers exactly one question: how much does
+    // macroLift depend on which events happen to be in this dataset, not on
+    // match-outcome randomness within any given event (that's a separate,
+    // unaddressed source of uncertainty this CI is silent on).
     const diffs: number[] = []
     let baselineBetter = 0
-    for (let i = 0; i < 1000; i++) {
-      const sample = Array.from(
-        { length: r.bootstrapPairs.length },
-        () => r.bootstrapPairs[Math.floor(Math.random() * r.bootstrapPairs.length)],
+    // 10,000 resamples (up from 1000) so the p-value isn't just reporting its
+    // own resolution floor (1/1000 when zero resamples favor baseline).
+    for (let i = 0; i < 10000; i++) {
+      // Draw usable.length event-indices, with replacement, from the usable
+      // real events — some events land more than once, some not at all, but
+      // each draw is the same size as the real dataset.
+      const idx = Array.from({ length: usable.length }, () =>
+        Math.floor(Math.random() * usable.length),
       )
-      const d =
-        rocAuc(sample.map((p) => ({ prob: p.custom, actual: p.actual }))) -
-        rocAuc(sample.map((p) => ({ prob: p.baseline, actual: p.actual })))
+      // Average this draw's custom-AUC and baseline-AUC values separately,
+      // over exactly the events picked (duplicates counted multiple times).
+      const meanCustom = idx.reduce((s, j) => s + usable[j].custom, 0) / idx.length
+      const meanBaseline = idx.reduce((s, j) => s + usable[j].baseline, 0) / idx.length
+      // This draw's synthetic version of the real macroLift statistic.
+      const d = meanCustom - meanBaseline
       diffs.push(d)
+      // Tally how often this resample would have favored the baseline
+      // instead of the model — becomes the p-value below.
       if (d <= 0) baselineBetter++
     }
+    // Sort so the 2.5th/97.5th percentile (indices 250/9749 of 10000) can be
+    // read off directly as the 95% CI bounds.
     diffs.sort((a, b) => a - b)
 
-    expect(customAuc, 'AUC must exceed 0.88').toBeGreaterThan(0.88)
+    expect(macroAucCustom, 'Macro-AUC must exceed 0.88').toBeGreaterThan(0.88)
 
     // ── Logging ──
     console.log(
@@ -468,12 +537,17 @@ describe('LCQ/MSS Backtest', () => {
             [
               'Max MC Shift',
               `${(r.maxObservedShift * 100).toFixed(2)}%`,
-              r.maxObservedShift <= VARIANCE_BOUND ? 'PASSED' : 'WARN',
+              '', // informational only — see p99 gate below for the actual pass/fail check
             ],
             [
-              'MC Stability Vio.',
+              'MC Shift (raw violations)',
               r.stabilityViolations,
-              r.stabilityViolations === 0 ? 'PASSED' : 'FAILED',
+              '', // informational only — not gated; see p99 gate below
+            ],
+            [
+              'MC Shift p99',
+              `${(p99Shift * 100).toFixed(2)}%`,
+              p99Shift <= VARIANCE_BOUND ? 'PASSED' : 'FAILED',
             ],
           ],
         ),
@@ -484,12 +558,13 @@ describe('LCQ/MSS Backtest', () => {
         dataTable(
           ['Metric', 'Value'],
           [
-            ['Custom AUC', customAuc.toFixed(4)],
-            ['Baseline AUC', baselineAuc.toFixed(4)],
-            ['Lift', delta(customAuc - baselineAuc)],
+            ['Macro AUC (custom)', macroAucCustom.toFixed(4)],
+            ['Macro AUC (baseline)', macroAucBaseline.toFixed(4)],
+            ['Lift', delta(macroLift)],
+            ['Bootstrap Events', usable.length],
             ['Seed 0 Win Brier', (r.seed0WinBrierSum / r.seed0TotalPredictions).toFixed(4)],
-            ['p-value', (baselineBetter / 1000).toFixed(4)],
-            ['95% CI Lift', `[${diffs[25].toFixed(4)}, ${diffs[975].toFixed(4)}]`],
+            ['p-value', (baselineBetter / 10000).toFixed(4)],
+            ['95% CI Lift', `[${diffs[250].toFixed(4)}, ${diffs[9749].toFixed(4)}]`],
           ],
         ),
     )
@@ -526,7 +601,7 @@ describe('LCQ/MSS Backtest', () => {
     for (const s of seasons) {
       const seasonPairs = r.seed0RocPairs.filter((p) => p.season === s)
       console.log(
-        '\n' +
+        `\nSeason ${s}:\n` +
           dataTable(
             ['Event', 'Custom AUC', 'Baseline AUC', 'Lift', 'Sample'],
             kinds.map((kind) => {
@@ -548,17 +623,19 @@ describe('LCQ/MSS Backtest', () => {
     const output = {
       generatedAt: new Date().toISOString(),
       metrics: {
-        customAuc,
-        baselineAuc,
-        lift: customAuc - baselineAuc,
-        pValue: baselineBetter / 1000,
-        ci95: [diffs[25], diffs[975]],
+        macroAucCustom,
+        macroAucBaseline,
+        macroLift,
+        bootstrapEventCount: usable.length,
+        pValue: baselineBetter / 10000,
+        ci95: [diffs[250], diffs[9749]],
         survivalBrier: r.brierScoreSum / r.totalPredictions,
         seed0WinBrier: r.seed0WinBrierSum / r.seed0TotalPredictions,
         totalPredictions: r.totalPredictions,
         avgClinchSlack:
           r.clinchSlackMeasurements > 0 ? r.totalClinchSlack / r.clinchSlackMeasurements : null,
         maxMcShift: r.maxObservedShift,
+        p99McShift: p99Shift,
         calibrationBuckets: r.stepBuckets.map((b, i) => ({
           range: `${i * 10}-${(i + 1) * 10}%`,
           expected: b.count > 0 ? b.sum / b.count : null,

@@ -10,6 +10,7 @@ import {
   EMPTY_PLAYER,
   runMonteCarlo,
   runFullHeatmapSimulation,
+  createSimPool,
   simulateRound,
 } from '../lib/core/simulation'
 import type { SimPlayer } from '../lib/core/simulation'
@@ -234,13 +235,16 @@ describe('simulateRound: completer-count scoring', () => {
     const completer = makePlayer('comp', 0, { bestTimeMs: 300_000, avgTimeMs: 300_000 })
 
     const stats = calculateLobbyStats([dnfer, completer])
+    const pool = createSimPool([dnfer, completer], stats)
+    const compIdx = pool.uuidToIdx.get('comp')!
 
-    // Run 100 iterations and check completer almost always gets 24 (1-player pool)
+    // Run 200 iterations and check completer almost always gets 24 (1-player pool)
     let got24 = 0
     for (let i = 0; i < 200; i++) {
-      const result = simulateRound([dnfer, completer], 1, stats)
-      const comp = result.find((p) => p.uuid === 'comp')!
-      if (comp.point === 24) got24++
+      pool.points.set(pool.basePoints)
+      pool.alive.fill(1)
+      simulateRound(pool, 1)
+      if (pool.points[compIdx] === 24) got24++
     }
     // DNF prob for dnfer ≈ 0.4 (capped), so completer is alone in most rounds
     // When alone, completer should get 24 (not last-place of 2-player score)
@@ -254,7 +258,7 @@ describe('runMonteCarlo', () => {
   const players = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id, i) => makePlayer(id, i * 5))
 
   it('all win probabilities are in [0, 1]', () => {
-    const results = runMonteCarlo(players, 1, CUT, 3, 2000)
+    const results = runMonteCarlo(players, 1, CUT, 3, { iterations: 2000 })
     for (const r of Object.values(results)) {
       expect(r.winProbability).toBeGreaterThanOrEqual(0)
       expect(r.winProbability).toBeLessThanOrEqual(1)
@@ -263,13 +267,13 @@ describe('runMonteCarlo', () => {
 
   it('win probabilities sum to approximately targetRank', () => {
     const targetRank = 3
-    const results = runMonteCarlo(players, 1, CUT, targetRank, 5000)
+    const results = runMonteCarlo(players, 1, CUT, targetRank, { iterations: 5000 })
     const total = Object.values(results).reduce((s, r) => s + r.winProbability, 0)
     expect(total).toBeCloseTo(targetRank, 0)
   })
 
   it('all survival probabilities are in [0, 1]', () => {
-    const results = runMonteCarlo(players, 1, CUT, 3, 2000)
+    const results = runMonteCarlo(players, 1, CUT, 3, { iterations: 2000 })
     for (const r of Object.values(results)) {
       expect(r.survivalProbability).toBeGreaterThanOrEqual(0)
       expect(r.survivalProbability).toBeLessThanOrEqual(1)
@@ -277,7 +281,7 @@ describe('runMonteCarlo', () => {
   })
 
   it('when event is over, top targetRank players have winProbability=1', () => {
-    const done = runMonteCarlo(players, 11, CUT, 3, 100)
+    const done = runMonteCarlo(players, 11, CUT, 3, { iterations: 100 })
     const sorted = [...players].sort((a, b) => b.point - a.point)
     for (let i = 0; i < 3; i++) {
       expect(done[sorted[i].uuid].winProbability).toBe(1)

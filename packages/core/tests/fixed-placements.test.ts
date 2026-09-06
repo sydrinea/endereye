@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   applyElimination,
   runMonteCarlo,
-  runMonteCarloWithFixedPlacements,
   toSimPlayer,
   EMPTY_PLAYER,
   getAvailableScores,
@@ -28,13 +27,13 @@ function makePlayer(id: string, point: number, overrides?: Partial<typeof EMPTY_
   )
 }
 
-describe('runMonteCarloWithFixedPlacements', () => {
+describe('runMonteCarlo with fixed placements', () => {
   const CUT: EliminationCut[] = [{ afterSeed: 8, keepTop: 6 }]
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
   const players = ids.map((id, i) => makePlayer(id, (10 - i) * 3))
 
-  it('empty fixed map delegates to runMonteCarlo (probabilities in range, survival sums plausibly)', () => {
-    const res = runMonteCarloWithFixedPlacements(players, 8, CUT, 4, {}, 3000)
+  it('empty fixed map behaves like no fixed placements at all (probabilities in range, survival sums plausibly)', () => {
+    const res = runMonteCarlo(players, 8, CUT, 4, { fixed: {}, iterations: 3000 })
     for (const r of Object.values(res)) {
       expect(r.winProbability).toBeGreaterThanOrEqual(0)
       expect(r.winProbability).toBeLessThanOrEqual(1)
@@ -50,7 +49,7 @@ describe('runMonteCarloWithFixedPlacements', () => {
     const fixed: Record<string, number> = {}
     ids.forEach((id, i) => (fixed[id] = i + 1))
 
-    const res = runMonteCarloWithFixedPlacements(players, 8, CUT, 4, fixed, 500)
+    const res = runMonteCarlo(players, 8, CUT, 4, { fixed, iterations: 500 })
 
     const scores = getAvailableScores(players.length)
     const projected = players.map((p, i) => ({
@@ -65,8 +64,8 @@ describe('runMonteCarloWithFixedPlacements', () => {
   })
 
   it('pinning a bottom player to 1st this seed raises their survival odds', () => {
-    const baseline = runMonteCarlo(players, 8, CUT, 4, 4000)
-    const boosted = runMonteCarloWithFixedPlacements(players, 8, CUT, 4, { j: 1 }, 4000)
+    const baseline = runMonteCarlo(players, 8, CUT, 4, { iterations: 4000 })
+    const boosted = runMonteCarlo(players, 8, CUT, 4, { fixed: { j: 1 }, iterations: 4000 })
     expect(boosted['j'].survivalProbability).toBeGreaterThan(baseline['j'].survivalProbability)
   })
 })

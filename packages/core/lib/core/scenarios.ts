@@ -1,7 +1,7 @@
 import type { EliminationCut } from './config'
 import { type SimPlayer, calculateLobbyStats, createSimPool } from './player-model'
 import { getAvailableScores } from './scoring'
-import { rankInplace, simulateRoundInplace, applyEliminationInplace } from './monte-carlo'
+import { rankPool, simulateRound, applyPoolElimination } from './monte-carlo'
 
 export interface PlacementConstraint {
   uuid: string
@@ -154,13 +154,13 @@ function buildScenariosFromRecords(
   return deduped.slice(0, maxScenarios)
 }
 
-// Simulate the first round in-place and record each alive player's placement (1-based).
-function simulateFirstRoundInplace(
+// Simulate the first round and record each alive player's placement (1-based).
+function simulateFirstRound(
   pool: ReturnType<typeof createSimPool>,
   round: number,
   placements: Record<string, number>,
 ): void {
-  const count = rankInplace(pool, round)
+  const count = rankPool(pool, round)
   let completerCount = 0
   for (let k = 0; k < count; k++) if (pool.rankVals[k] !== -Infinity) completerCount++
   const scores = getAvailableScores(completerCount)
@@ -172,11 +172,41 @@ function simulateFirstRoundInplace(
   }
 }
 
+// Like simulateFirstRound, but `targetIdx` is excluded from the round
+// entirely (a DNF) and placed last — used to answer "what does this player's
+// field look like if they fail to complete this round," which is what a
+// threat/failure scenario is conditioning on.
+function simulateFirstRoundForcedDnf(
+  pool: ReturnType<typeof createSimPool>,
+  round: number,
+  targetIdx: number,
+  placements: Record<string, number>,
+): void {
+  pool.alive[targetIdx] = 0
+  const count = rankPool(pool, round)
+  let completerCount = 0
+  for (let k = 0; k < count; k++) if (pool.rankVals[k] !== -Infinity) completerCount++
+  const scores = getAvailableScores(completerCount)
+  let scoreIdx = 0
+  for (let k = 0; k < count; k++) {
+    const idx = pool.rankIdx[k]
+    pool.points[idx] += pool.rankVals[k] !== -Infinity ? (scores[scoreIdx++] ?? 0) : 0
+    placements[pool.uuids[idx]] = k + 1
+  }
+  placements[pool.uuids[targetIdx]] = pool.n
+  pool.alive[targetIdx] = 1 // restore — target didn't score but is still in the event
+}
+
+// `fixedTargetUuid`, if given, forces that player to DNF the current round
+// (see simulateFirstRoundForcedDnf) for every iteration — used by
+// computeFailureScenarios to condition on "this player fails this round."
+// Otherwise every player's outcome is simulated normally.
 export function runBatchSimulation(
   players: SimPlayer[],
   currentRound: number,
   cuts: EliminationCut[],
   iterations = 20000,
+  fixedTargetUuid?: string,
 ): SharedRecord[] {
   const nextCutEntry = cuts.find((c) => c.afterSeed >= currentRound)
   if (!nextCutEntry) return []
@@ -184,6 +214,7 @@ export function runBatchSimulation(
   const n = players.length
   const stats = calculateLobbyStats(players)
   const pool = createSimPool(players, stats)
+  const targetIdx = fixedTargetUuid !== undefined ? (pool.uuidToIdx.get(fixedTargetUuid) ?? -1) : -1
   const records: SharedRecord[] = []
 
   for (let iter = 0; iter < iterations; iter++) {
@@ -194,12 +225,13 @@ export function runBatchSimulation(
 
     for (let r = currentRound; r <= nextCutEntry.afterSeed; r++) {
       if (r === currentRound) {
-        simulateFirstRoundInplace(pool, r, placements)
+        if (targetIdx !== -1) simulateFirstRoundForcedDnf(pool, r, targetIdx, placements)
+        else simulateFirstRound(pool, r, placements)
       } else {
-        simulateRoundInplace(pool, r)
+        simulateRound(pool, r)
       }
       const cut = cuts.find((c) => c.afterSeed === r)
-      if (cut) applyEliminationInplace(pool, cut)
+      if (cut) applyPoolElimination(pool, cut)
     }
 
     const survivedByUuid: Record<string, boolean> = {}
@@ -245,71 +277,5 @@ export function derivePlayerScenarios(
     options?.threatMode ?? false,
   )
 
-  return { scenarios, baseProbability: baseP }
-}
-
-export function runScenarioAnalysis(
-  targetUuid: string,
-  players: SimPlayer[],
-  currentRound: number,
-  cuts: EliminationCut[],
-  iterations = 20000,
-  fixedTargetLast = false,
-  threatMode = false,
-): { scenarios: SurvivalScenario[]; baseProbability: number } {
-  const nextCutEntry = cuts.find((c) => c.afterSeed >= currentRound)
-  if (!nextCutEntry) return { scenarios: [], baseProbability: 0 }
-
-  const n = players.length
-  const stats = calculateLobbyStats(players)
-  const pool = createSimPool(players, stats)
-  const targetIdx = pool.uuidToIdx.get(targetUuid) ?? -1
-  if (targetIdx === -1) return { scenarios: [], baseProbability: 0 }
-
-  type SimRecord = { placements: Record<string, number>; survived: boolean }
-  const records: SimRecord[] = []
-
-  for (let iter = 0; iter < iterations; iter++) {
-    pool.points.set(pool.basePoints)
-    pool.alive.fill(1)
-
-    const placements: Record<string, number> = {}
-
-    for (let r = currentRound; r <= nextCutEntry.afterSeed; r++) {
-      if (r === currentRound) {
-        if (fixedTargetLast) {
-          // Force target to DNF: exclude from ranking, give them last place and 0 points
-          pool.alive[targetIdx] = 0
-          const count = rankInplace(pool, r)
-          let completerCount = 0
-          for (let k = 0; k < count; k++) if (pool.rankVals[k] !== -Infinity) completerCount++
-          const scores = getAvailableScores(completerCount)
-          let scoreIdx = 0
-          for (let k = 0; k < count; k++) {
-            const idx = pool.rankIdx[k]
-            pool.points[idx] += pool.rankVals[k] !== -Infinity ? (scores[scoreIdx++] ?? 0) : 0
-            placements[pool.uuids[idx]] = k + 1
-          }
-          placements[targetUuid] = n
-          pool.alive[targetIdx] = 1 // restore — target didn't score but is still in the event
-        } else {
-          simulateFirstRoundInplace(pool, r, placements)
-        }
-      } else {
-        simulateRoundInplace(pool, r)
-      }
-      const cut = cuts.find((c) => c.afterSeed === r)
-      if (cut) applyEliminationInplace(pool, cut)
-    }
-
-    records.push({ placements, survived: pool.alive[targetIdx] === 1 })
-  }
-
-  const naturalSurvived = records.filter((r) => r.survived).length
-  if (naturalSurvived === 0) return { scenarios: [], baseProbability: 0 }
-
-  const baseP = naturalSurvived / iterations
-  const opponents = players.filter((p) => p.uuid !== targetUuid)
-  const scenarios = buildScenariosFromRecords(records, opponents, n, baseP, 5, 3, 8, threatMode)
   return { scenarios, baseProbability: baseP }
 }

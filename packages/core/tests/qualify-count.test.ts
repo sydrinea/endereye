@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { computePlayerOdds, computeSurvivalScenarios } from '../lib/core/odds'
+import { computePlayerOdds, buildScenarioRecords, deriveScenariosFromRecords } from '../lib/core/odds'
 import type { EventContext } from '../lib/context/event'
 import type { BracketEntry } from '../lib/api/types'
 import type { EventPlayer } from '../lib/context/event'
+
+// computeSurvivalScenarios was folded away in favor of the build-once/query-many
+// pair these tests already exercise elsewhere in the suite (buildScenarioRecords
+// + deriveScenariosFromRecords) — this just wires them together for a single
+// target, matching computeSurvivalScenarios's old signature/behavior exactly.
+function survivalScenarios(ctx: EventContext, targetUuid: string) {
+  const records = buildScenarioRecords(ctx)
+  if (!records) return []
+  return deriveScenariosFromRecords(targetUuid, records).scenarios
+}
 
 function makePlayer(uuid: string): EventPlayer {
   return {
@@ -82,10 +92,10 @@ describe('qualifyCount propagation', () => {
   })
 })
 
-describe('computeSurvivalScenarios', () => {
+describe('survival scenarios via buildScenarioRecords/deriveScenariosFromRecords', () => {
   it('returns empty array when event is over', () => {
     const ctx = makeCtx(11, 4, [200, 180, 160, 140, 120, 100])
-    expect(computeSurvivalScenarios(ctx, 'p6')).toHaveLength(0)
+    expect(survivalScenarios(ctx, 'p6')).toHaveLength(0)
   })
 
   it('returns empty array for eliminated player', () => {
@@ -99,12 +109,12 @@ describe('computeSurvivalScenarios', () => {
       })),
       matches: [],
     }
-    expect(computeSurvivalScenarios(ctx, 'p6')).toHaveLength(0)
+    expect(survivalScenarios(ctx, 'p6')).toHaveLength(0)
   })
 
   it('returns scenarios sorted by descending survivalProbability', () => {
     const ctx = makeCtx(9, 4, [140, 135, 130, 125, 120, 100])
-    const scenarios = computeSurvivalScenarios(ctx, 'p6')
+    const scenarios = survivalScenarios(ctx, 'p6')
     for (let i = 1; i < scenarios.length; i++) {
       expect(scenarios[i].survivalProbability).toBeLessThanOrEqual(scenarios[i - 1].survivalProbability)
     }
@@ -112,7 +122,7 @@ describe('computeSurvivalScenarios', () => {
 
   it('all scenario probabilities and frequencies are in [0, 1]', () => {
     const ctx = makeCtx(9, 4, [140, 135, 130, 125, 120, 100])
-    const scenarios = computeSurvivalScenarios(ctx, 'p6')
+    const scenarios = survivalScenarios(ctx, 'p6')
     for (const s of scenarios) {
       expect(s.survivalProbability).toBeGreaterThanOrEqual(0)
       expect(s.survivalProbability).toBeLessThanOrEqual(1)
@@ -123,7 +133,7 @@ describe('computeSurvivalScenarios', () => {
 
   it('constraints only reference players other than the target', () => {
     const ctx = makeCtx(9, 4, [140, 135, 130, 125, 120, 100])
-    const scenarios = computeSurvivalScenarios(ctx, 'p6')
+    const scenarios = survivalScenarios(ctx, 'p6')
     for (const s of scenarios) {
       for (const c of s.constraints) {
         expect(c.uuid).not.toBe('p6')

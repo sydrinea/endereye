@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computePlayerOdds, computeHypotheticalOdds } from '../lib/core/odds'
+import { computePlayerOdds } from '../lib/core/odds'
 import { getClinchScore } from '../lib/core/simulation'
 import { toSimPlayer, EMPTY_PLAYER } from '../lib/core/simulation'
 import type { EliminationCut } from '../lib/core/config'
@@ -45,11 +45,11 @@ function makeCtx(): EventContext {
 
 const SCHEDULE: EliminationCut[] = [{ afterSeed: 8, keepTop: 8 }]
 
-describe('computeHypotheticalOdds', () => {
+describe('computePlayerOdds with fixed placements', () => {
   it('empty fixed map returns the same odds as computePlayerOdds', () => {
     const ctx = makeCtx()
     const base = computePlayerOdds(ctx)
-    const hypo = computeHypotheticalOdds(ctx, {}, 2000)
+    const hypo = computePlayerOdds(ctx, { fixed: {}, iterations: 2000 })
     for (const id of ids) {
       expect(hypo[id].clinchPlace).toEqual(base[id].clinchPlace)
       expect(hypo[id].status).toEqual(base[id].status)
@@ -58,7 +58,7 @@ describe('computeHypotheticalOdds', () => {
 
   it('a pinned player gets no clinch pill and ~certain survival when pinned to 1st', () => {
     const ctx = makeCtx()
-    const hypo = computeHypotheticalOdds(ctx, { p9: 1 }, 3000)
+    const hypo = computePlayerOdds(ctx, { fixed: { p9: 1 }, iterations: 3000 })
     expect(hypo['p9'].clinchPlace).toBeNull()
     expect(hypo['p9'].survivalProbability).toBeGreaterThan(0.9)
   })
