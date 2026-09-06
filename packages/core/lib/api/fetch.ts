@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * Thin wrappers over the two MCSR Ranked API hosts. Each fetches one endpoint,
- * throws `FetchError` on a non-2xx response, and validates the `data` field
- * against its Zod schema so callers get a fully-typed, known-shaped result or
- * an exception — never a partially-valid object.
+ * Thin wrappers over the two MCSR Ranked API hosts. Each fetches one endpoint
+ * through `getParsed`, which throws `FetchError` on a non-2xx response and
+ * validates the `data` field against its Zod schema — so callers get a
+ * fully-typed, known-shaped result or an exception, never a partial object.
  *
  * `api.mcsrranked.com` is the public API; `mcsrranked.com/api` is the web API
  * (currently unused here but kept for the base map).
  */
+import type { ZodType } from 'zod'
 import { FetchError } from '../errors'
 import {
   LeaderboardSchema,
@@ -26,15 +27,6 @@ const API_BASE = {
 
 const LEADERBOARD_ROUTE = `${API_BASE.MCSR_PUBLIC}/leaderboard` as const
 
-/** The number of the ranked season currently in progress. */
-export async function fetchCurrentSeason(): Promise<number> {
-  const res = await fetch(LEADERBOARD_ROUTE)
-  if (!res.ok) throw new FetchError(`[${LEADERBOARD_ROUTE}] Failed to fetch: ${res.status}`)
-  const json = (await res.json()) as any
-  const data = LeaderboardSchema.parse(json.data)
-  return data.season.number
-}
-
 const ROUTES = {
   MATCH_INFO: (id: number) => `${API_BASE.MCSR_PUBLIC}/matches/${id}`,
   PHASE_LEADERBOARD: (season: number, predicted?: boolean) =>
@@ -45,39 +37,37 @@ const ROUTES = {
       : `${API_BASE.MCSR_PUBLIC}/users/${uuid}`,
 } as const
 
-/** A user's stats, scoped to `season` when given, otherwise all-time/current. */
-export async function fetchUser(uuid: string, season?: number): Promise<User> {
-  const url = ROUTES.USER_SEASON_STATS(uuid, season)
+/** GET `url`, throw `FetchError` on a bad status, and parse the response's `data` field with `schema`. */
+async function getParsed<T>(url: string, schema: ZodType<T>): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) throw new FetchError(`[${url}] Failed to fetch: ${res.status}`)
   const json = (await res.json()) as any
-  const data = UserSchema.parse(json.data)
-  return data
+  return schema.parse(json.data)
+}
+
+/** The number of the ranked season currently in progress. */
+export async function fetchCurrentSeason(): Promise<number> {
+  const data = await getParsed(LEADERBOARD_ROUTE, LeaderboardSchema)
+  return data.season.number
+}
+
+/** A user's stats, scoped to `season` when given, otherwise all-time/current. */
+export function fetchUser(uuid: string, season?: number): Promise<User> {
+  return getParsed(ROUTES.USER_SEASON_STATS(uuid, season), UserSchema)
 }
 
 /** One match by numeric id, including its per-player completions and timeline. */
-export async function fetchMatch(id: number): Promise<Match> {
-  const res = await fetch(ROUTES.MATCH_INFO(id))
-  if (!res.ok) throw new FetchError(`[${ROUTES.MATCH_INFO(id)}] Failed to fetch: ${res.status}`)
-  const json = (await res.json()) as any
-  const data = MatchSchema.parse(json.data)
-  return data
+export function fetchMatch(id: number): Promise<Match> {
+  return getParsed(ROUTES.MATCH_INFO(id), MatchSchema)
 }
 
 /**
  * The season-phase leaderboard, used to derive carry-in bonus points.
  * @param predicted request the projected end-of-phase standings rather than current.
  */
-export async function fetchPhaseLeaderboard(
+export function fetchPhaseLeaderboard(
   season: number,
   predicted?: boolean,
 ): Promise<PhaseLeaderboard> {
-  const res = await fetch(ROUTES.PHASE_LEADERBOARD(season, predicted))
-  if (!res.ok)
-    throw new FetchError(
-      `[${ROUTES.PHASE_LEADERBOARD(season, predicted)}] Failed to fetch: ${res.status}`,
-    )
-  const json = (await res.json()) as any
-  const data = PhaseLeaderboardSchema.parse(json.data)
-  return data
+  return getParsed(ROUTES.PHASE_LEADERBOARD(season, predicted), PhaseLeaderboardSchema)
 }

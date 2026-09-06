@@ -73,6 +73,30 @@ function applyBestCaseSegment(
 }
 
 /**
+ * Adds each pinned player's exact place-score to their point total and returns
+ * the scores for the *unpinned* places, sorted `'desc'` (best first, for a
+ * best-case hand-out) or `'asc'` (worst-case). Pins outside `1..n` are ignored.
+ * Mutates `state`.
+ */
+function applyPinnedScores(
+  state: SimPlayer[],
+  fixed: Record<string, number>,
+  scores: number[],
+  direction: 'asc' | 'desc',
+): number[] {
+  const n = state.length
+  const takenPlaces = new Set<number>()
+  for (const [uuid, place] of Object.entries(fixed)) {
+    if (place < 1 || place > n) continue
+    takenPlaces.add(place)
+    const p = state.find((x) => x.uuid === uuid)
+    if (p) p.point += scores[place - 1]
+  }
+  const rest = scores.filter((_, i) => !takenPlaces.has(i + 1))
+  return direction === 'desc' ? rest.sort((a, b) => b - a) : rest.sort((a, b) => a - b)
+}
+
+/**
  * Best-case current seed with some players pinned (`fixed`: uuid → 1-based
  * place). Pinned players score exactly their place; an unpinned target takes
  * the best score still available; the remaining scores go to the other free
@@ -84,22 +108,11 @@ function applyFixedBestCaseSeed(
   state: SimPlayer[],
   fixed: Record<string, number>,
 ): void {
-  const n = state.length
-  const scores = getAvailableScores(n)
-  const takenPlaces = new Set<number>()
-
-  for (const [uuid, place] of Object.entries(fixed)) {
-    if (place < 1 || place > n) continue
-    takenPlaces.add(place)
-    const p = state.find((x) => x.uuid === uuid)
-    if (p) p.point += scores[place - 1]
-  }
-
-  const avail = scores.filter((_, i) => !takenPlaces.has(i + 1)).sort((a, b) => b - a)
+  const scores = getAvailableScores(state.length)
+  const avail = applyPinnedScores(state, fixed, scores, 'desc')
   const tIdx = state.findIndex((p) => p.uuid === targetUuid)
-  const targetFixed = targetUuid in fixed
 
-  if (!targetFixed && tIdx !== -1) {
+  if (!(targetUuid in fixed) && tIdx !== -1) {
     state[tIdx].point += avail.shift() ?? 0
   }
 
@@ -161,18 +174,8 @@ function applyFixedWorstCaseSeed(
   fixed: Record<string, number>,
   targetScore: number | null,
 ): void {
-  const n = state.length
-  const scores = getAvailableScores(n)
-  const takenPlaces = new Set<number>()
-
-  for (const [uuid, place] of Object.entries(fixed)) {
-    if (place < 1 || place > n) continue
-    takenPlaces.add(place)
-    const p = state.find((x) => x.uuid === uuid)
-    if (p) p.point += scores[place - 1]
-  }
-
-  const avail = scores.filter((_, i) => !takenPlaces.has(i + 1)).sort((a, b) => a - b)
+  const scores = getAvailableScores(state.length)
+  const avail = applyPinnedScores(state, fixed, scores, 'asc')
   const targetFixed = targetUuid in fixed
   const tIdx = state.findIndex((p) => p.uuid === targetUuid)
 
