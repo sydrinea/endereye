@@ -1,3 +1,7 @@
+// Unit tests for the simulation primitives in isolation: the score table,
+// elimination thresholds (including cutline ties), the lobby-stat / power /
+// variance / DNF math, per-round scoring, and that runMonteCarlo /
+// runFullHeatmapSimulation return well-formed, bounded probabilities.
 import { describe, it, expect } from 'vitest'
 import {
   getAvailableScores,

@@ -1,4 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/**
+ * Thin wrappers over the two MCSR Ranked API hosts. Each fetches one endpoint,
+ * throws `FetchError` on a non-2xx response, and validates the `data` field
+ * against its Zod schema so callers get a fully-typed, known-shaped result or
+ * an exception — never a partially-valid object.
+ *
+ * `api.mcsrranked.com` is the public API; `mcsrranked.com/api` is the web API
+ * (currently unused here but kept for the base map).
+ */
 import { FetchError } from '../errors'
 import {
   LeaderboardSchema,
@@ -17,6 +26,7 @@ const API_BASE = {
 
 const LEADERBOARD_ROUTE = `${API_BASE.MCSR_PUBLIC}/leaderboard` as const
 
+/** The number of the ranked season currently in progress. */
 export async function fetchCurrentSeason(): Promise<number> {
   const res = await fetch(LEADERBOARD_ROUTE)
   if (!res.ok) throw new FetchError(`[${LEADERBOARD_ROUTE}] Failed to fetch: ${res.status}`)
@@ -35,6 +45,7 @@ const ROUTES = {
       : `${API_BASE.MCSR_PUBLIC}/users/${uuid}`,
 } as const
 
+/** A user's stats, scoped to `season` when given, otherwise all-time/current. */
 export async function fetchUser(uuid: string, season?: number): Promise<User> {
   const url = ROUTES.USER_SEASON_STATS(uuid, season)
   const res = await fetch(url)
@@ -44,6 +55,7 @@ export async function fetchUser(uuid: string, season?: number): Promise<User> {
   return data
 }
 
+/** One match by numeric id, including its per-player completions and timeline. */
 export async function fetchMatch(id: number): Promise<Match> {
   const res = await fetch(ROUTES.MATCH_INFO(id))
   if (!res.ok) throw new FetchError(`[${ROUTES.MATCH_INFO(id)}] Failed to fetch: ${res.status}`)
@@ -52,6 +64,10 @@ export async function fetchMatch(id: number): Promise<Match> {
   return data
 }
 
+/**
+ * The season-phase leaderboard, used to derive carry-in bonus points.
+ * @param predicted request the projected end-of-phase standings rather than current.
+ */
 export async function fetchPhaseLeaderboard(
   season: number,
   predicted?: boolean,

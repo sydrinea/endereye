@@ -1,3 +1,6 @@
+// Covers the view-model layer: calculatePoints (bonus + scored completions),
+// computeHistoricalData (rewinding an event to an earlier seed and replaying
+// cuts), and computePlayerOdds' handling of already-eliminated players.
 import { describe, it, expect } from 'vitest'
 import { calculatePoints, computeHistoricalData } from '../lib/core/context'
 import { computePlayerOdds } from '../lib/core/odds'

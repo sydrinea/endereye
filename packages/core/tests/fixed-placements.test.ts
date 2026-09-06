@@ -1,3 +1,7 @@
+// Covers runMonteCarlo's fixed-placement mode: pinning some players to a
+// finishing place in the current round and checking that the resulting
+// probabilities reflect the pins (pinned players' outcomes are forced, free
+// players fill the rest) and stay consistent with the deterministic math.
 import { describe, it, expect } from 'vitest'
 import {
   applyElimination,

@@ -1,13 +1,20 @@
+/**
+ * View-model assembly: turn an `EventContext` plus computed odds into the
+ * `PlayerView[]` the standings table renders, and provide the historical
+ * "rewind the event to seed N" transform behind the seed scrubber.
+ */
 import type { PlayerOdds } from './odds'
 import { EventContext, EventPlayer } from '../context/event'
 import { applyElimination, runFullHeatmapSimulation, toSimPlayer } from './simulation'
 import { BracketEntry } from '../api/types'
 import { getEffectiveSchedule } from './config'
 
+/** A player row: their profile, bracket state, odds, and current/previous rank merged. */
 export type PlayerView = EventPlayer &
   BracketEntry &
   PlayerOdds & { rank: number; prevRank: number | null }
 
+/** Points after `seed` seeds: carry-in bonus plus the scored completions so far (capped at 10 seeds). */
 export function calculatePoints(b: BracketEntry, seed: number): number {
   return (
     b.bonus +
@@ -15,6 +22,14 @@ export function calculatePoints(b: BracketEntry, seed: number): number {
   )
 }
 
+/**
+ * Rewinds an event to the state right after `viewSeed` seeds: replays each cut
+ * whose seed is `<= viewSeed` to re-derive who was eliminated by then,
+ * recomputes every bracket's points at that seed, truncates `completions` and
+ * `ranks`, and sets `currentRound` to `viewSeed + 1`. Cut eliminations are
+ * replayed rather than read from the live data because a player eliminated
+ * later shouldn't show as eliminated at an earlier seed.
+ */
 export function computeHistoricalData(data: EventContext, viewSeed: number): EventContext {
   const bracketMap = new Map(data.brackets.map((b) => [b.uuid, b]))
   const playerLookup = new Map(data.players.map((p) => [p.uuid, p]))
@@ -46,19 +61,23 @@ export function computeHistoricalData(data: EventContext, viewSeed: number): Eve
   return { ...data, brackets: newBrackets, currentRound: viewSeed + 1 }
 }
 
+/**
+ * Joins brackets, player profiles, and odds into sorted `PlayerView` rows.
+ * Rank is the sorted position (points desc, then bonus), computed here rather
+ * than read from stored data so it stays consistent with the live point totals
+ * after score overrides. Throws if a bracket has no matching player or odds.
+ */
 export function buildPlayerViews(
   data: EventContext,
   playerOdds: Record<string, PlayerOdds>,
 ): PlayerView[] {
   const playerLookup = new Map(data.players.map((p) => [p.uuid, p]))
 
-  // Sort by current points desc, then bonus desc as tiebreaker.
-  // We compute rank dynamically so overrides and eliminated-player ordering
-  // are always consistent with the actual point totals.
   const sorted = [...data.brackets].sort((a, b) => b.point - a.point || b.bonus - a.bonus)
 
   return sorted.map((b, i) => {
     const rank = i + 1
+    // Second-to-last entry in the rank history = rank as of the previous seed.
     const prevRank = b.ranks.length >= 2 ? b.ranks[b.ranks.length - 2] : null
     const player = playerLookup.get(b.uuid)
     if (!player) throw new Error(`Player ${b.uuid} not found in players list`)
@@ -68,6 +87,11 @@ export function buildPlayerViews(
   })
 }
 
+/**
+ * `EventContext` wrapper around `runFullHeatmapSimulation`: builds `SimPlayer`s
+ * for the alive brackets and returns each player's survival probability past
+ * every remaining cut seed (plus key 999 = final qualifier).
+ */
 export function runHeatmapSimulation(
   data: EventContext,
   currentRound: number,

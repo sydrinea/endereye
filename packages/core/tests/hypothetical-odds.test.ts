@@ -1,3 +1,7 @@
+// Covers computePlayerOdds' hypothetical (`opts.fixed`) path end to end: that
+// pinned placements flow into both the Monte Carlo and the deterministic flags
+// so a player eliminated by their own pin can't still show canStillWin, that
+// duplicate/invalid pins are cleaned, and that clinch scoring is consistent.
 import { describe, it, expect } from 'vitest'
 import { computePlayerOdds } from '../lib/core/odds'
 import { getClinchScore } from '../lib/core/simulation'

@@ -1,13 +1,13 @@
+// Checks that an event's `qualifyCount` propagates everywhere the schedule is
+// used: the final cut keeps that many, odds/status reflect it, and the
+// scenario miner conditions on the right survival boundary.
 import { describe, expect, it } from 'vitest'
 import { computePlayerOdds, buildScenarioRecords, deriveScenariosFromRecords } from '../lib/core/odds'
 import type { EventContext } from '../lib/context/event'
 import type { BracketEntry } from '../lib/api/types'
 import type { EventPlayer } from '../lib/context/event'
 
-// computeSurvivalScenarios was folded away in favor of the build-once/query-many
-// pair these tests already exercise elsewhere in the suite (buildScenarioRecords
-// + deriveScenariosFromRecords) — this just wires them together for a single
-// target, matching computeSurvivalScenarios's old signature/behavior exactly.
+// Wires the build-once/query-many scenario pair together for a single target.
 function survivalScenarios(ctx: EventContext, targetUuid: string) {
   const records = buildScenarioRecords(ctx)
   if (!records) return []

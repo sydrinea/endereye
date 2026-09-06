@@ -1,12 +1,30 @@
+/**
+ * Exact best-case / worst-case reachability math — the "is it still
+ * mathematically possible" questions behind the clinch pills and the
+ * qualified/safe/danger status, computed by handing out every remaining seed
+ * score in the most (or least) favourable way for one target player.
+ *
+ * These are decision procedures, not probabilities: they answer yes/no by
+ * constructing the extreme outcome, so a `false` from `canStillWin` means
+ * genuinely impossible and a `true` from `isSafeAtNextCut` means guaranteed.
+ * Monte Carlo (`monte-carlo.ts`) supplies the likelihoods in between.
+ *
+ * `fixed` (uuid → 1-based finishing place) pins some players' current-seed
+ * results — used by the client-side "what if the seed finished like this"
+ * recompute; a pinned place both scores that player exactly and removes that
+ * place from the pool the free players draw from.
+ */
 import type { EliminationCut } from './config'
 import type { SimPlayer } from './player-model'
 import { getAvailableScores, applyElimination } from './scoring'
 
-// Greedily hands out `avail` (ascending point values) to whichever players in
-// `unassigned` need the smallest boost to just overtake `targetPts` (worst
-// case for the target), then dumps any leftover scores on whoever's left.
-// This exact loop was previously copy-pasted three times across this file's
-// worst-case-seed variants.
+/**
+ * Worst-case (for the target) hand-out of `avail` seed scores: each opponent at
+ * or below the target, richest first, is given the smallest available score
+ * that lifts them one point past `targetPts`; whatever scores are left are
+ * dumped on the remaining players. Mutates the players in `unassigned` and
+ * consumes `avail`.
+ */
 function assignOvertakeScores(unassigned: SimPlayer[], avail: number[], targetPts: number): void {
   const pool = [...unassigned]
   for (const p of [...pool].filter((p) => p.point <= targetPts).sort((a, b) => b.point - a.point)) {
@@ -19,6 +37,7 @@ function assignOvertakeScores(unassigned: SimPlayer[], avail: number[], targetPt
   for (const p of pool) p.point += avail.pop() ?? 0
 }
 
+/** Worst-case current seed for the target: opponents get ascending scores tuned to just overtake. */
 function applyWorstCaseSeed(state: SimPlayer[], targetUuid: string): void {
   const scores = getAvailableScores(state.length - 1)
   const tIdx = state.findIndex((p) => p.uuid === targetUuid)
@@ -28,6 +47,12 @@ function applyWorstCaseSeed(state: SimPlayer[], targetUuid: string): void {
   assignOvertakeScores(others, avail, targetPts)
 }
 
+/**
+ * Best-case for the target over `seeds` future rounds: each round the target
+ * takes first place and the others take the remaining scores in point order
+ * (richest opponent gets the next-best score, so the field stays as bunched as
+ * possible behind the target). Pure — returns a fresh copy.
+ */
 function applyBestCaseSegment(
   targetUuid: string,
   players: SimPlayer[],
@@ -47,14 +72,13 @@ function applyBestCaseSegment(
   return result
 }
 
-// Best-case (for the target) distribution of the current seed when some
-// players are pinned to a known finishing place — the existence-question
-// counterpart to applyFixedWorstCaseSeed below. Pinned players get exactly
-// their pinned score; if the target itself isn't pinned, it gets the best
-// remaining score (maximizing its own advantage, since "can still win" asks
-// whether *any* outcome lets it reach the top targetRank); the rest of the
-// leftover scores go to the other unpinned players in no particular order,
-// since only the target's own point total and rank matter here.
+/**
+ * Best-case current seed with some players pinned (`fixed`: uuid → 1-based
+ * place). Pinned players score exactly their place; an unpinned target takes
+ * the best score still available; the remaining scores go to the other free
+ * players in any order, since only the target's own total and rank are read
+ * afterwards. Mutates `state`.
+ */
 function applyFixedBestCaseSeed(
   targetUuid: string,
   state: SimPlayer[],
@@ -83,6 +107,16 @@ function applyFixedBestCaseSeed(
   for (let i = 0; i < others.length; i++) others[i].point += avail[i] ?? 0
 }
 
+/**
+ * Can the target still finish in the top `targetRank`, given every favourable
+ * break from here on?
+ *
+ * Gives the target the best current seed (respecting `fixed`), then best-cases
+ * each segment between cuts and applies each cut for real; if the target is
+ * ever eliminated by a cut the answer is `false`. After the last cut it
+ * best-cases the remaining seeds and checks the final rank. A `false` is a hard
+ * mathematical elimination.
+ */
 export function canStillWinDeterministic(
   targetUuid: string,
   players: SimPlayer[],
@@ -114,11 +148,13 @@ export function canStillWinDeterministic(
   return rank > 0 && rank <= targetRank
 }
 
-// Worst-case (for the target) distribution of the current seed when some players
-// are pinned to a known finishing place. `fixed` maps uuid → 1-based place.
-// The target — if not itself pinned — is given `targetScore` (or 0 if null),
-// then the remaining seed scores are handed to the free opponents so as to
-// overtake the target by the smallest possible margin.
+/**
+ * Worst-case current seed with some players pinned (`fixed`: uuid → 1-based
+ * place). Pinned players score their place. An unpinned target is given
+ * `targetScore` (or 0), and the remaining scores go to the free opponents via
+ * `assignOvertakeScores` so they clear the target by the thinnest margin.
+ * Mutates `state`.
+ */
 function applyFixedWorstCaseSeed(
   state: SimPlayer[],
   targetUuid: string,
@@ -152,6 +188,18 @@ function applyFixedWorstCaseSeed(
   assignOvertakeScores(freeOpps, avail, targetPts)
 }
 
+/**
+ * Is the target guaranteed to survive the next cut, no matter how the
+ * intervening seeds fall?
+ *
+ * Constructs the worst case: gives opponents the current seed (honouring
+ * `fixed` or a known `fixedNextScore` for the target), then worst-cases every
+ * seed up to the cut, then applies the cut. Returns `true` only if the target
+ * still survives that. Returns `true` early if the event is already past all
+ * cuts.
+ *
+ * @param fixedNextScore the target's own current-seed score, if already known.
+ */
 export function isSafeAtNextCutDeterministic(
   targetUuid: string,
   players: SimPlayer[],
@@ -190,6 +238,16 @@ export function isSafeAtNextCutDeterministic(
   return applyElimination(state, nextCut).some((p) => p.uuid === targetUuid)
 }
 
+/**
+ * The easiest current-seed result that already guarantees the target survives
+ * the immediately-next cut — the "clinch" pill.
+ *
+ * Only meaningful when this seed *is* a cut seed. Tries a DNF first (score 0),
+ * then walks scores from worst to best and returns the first that makes
+ * `isSafeAtNextCutDeterministic` true, so the returned `place` is the worst
+ * finish the target can afford. `null` if there's no next cut here, the
+ * target's result is already pinned, or nothing clinches.
+ */
 export function getClinchScore(
   targetUuid: string,
   players: SimPlayer[],
@@ -199,7 +257,6 @@ export function getClinchScore(
 ): { score: number; place: number | 'DNF' } | null {
   const nextCut = cuts.find((c) => c.afterSeed >= currentRound)
   if (!nextCut || nextCut.afterSeed !== currentRound) return null
-  // The target's own result is already known — no clinch pill to show.
   if (fixed && targetUuid in fixed) return null
   if (isSafeAtNextCutDeterministic(targetUuid, players, currentRound, cuts, 0, fixed))
     return { score: 0, place: 'DNF' }

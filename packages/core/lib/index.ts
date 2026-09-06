@@ -1,3 +1,12 @@
+/**
+ * Public surface of @endereye/core. Consumers (the web app, scripts) import
+ * from here; the internal module layout behind it is:
+ *
+ *   api/*  →  events/build + players  →  context/event (EventContext)
+ *          →  core/odds + core/context  →  UI-facing results
+ *
+ * `core/*` depends only on `api/types`, never on `api/fetch`.
+ */
 export { mean } from './utils'
 
 export type { Match, BracketEntry, EventKind } from './api/types'

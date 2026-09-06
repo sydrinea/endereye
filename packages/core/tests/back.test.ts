@@ -1,3 +1,8 @@
+// Historical calibration backtest. Loads past LCQ/MSS events from R2, rewinds
+// each to every seed, recomputes odds, and scores the predictions against what
+// actually happened (Brier score, ROC AUC, per-seed calibration, clinch/safe
+// audits). Also writes the summary JSON the /method page renders. Skips
+// quietly when R2 credentials (apps/web/.env.local) are absent.
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'

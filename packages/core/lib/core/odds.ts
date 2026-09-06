@@ -1,3 +1,13 @@
+/**
+ * Top-level odds orchestrator. Takes an `EventContext` (the boundary object
+ * built by `events/build.ts`) and produces the per-player numbers the UI shows:
+ * win / survival probability (from Monte Carlo), the deterministic
+ * canStillWin / isSafe / clinch flags, projected cut delta, status, and power.
+ *
+ * `computePlayerOdds` is the one entry point for per-player odds — real or
+ * hypothetical. The scenario functions ("what needs to happen for X") are the
+ * other half of the surface.
+ */
 import type { BracketEntry } from '../api/types'
 import { EventContext } from '../context/event'
 import { getEffectiveSchedule, getKeepCount, type EliminationCut } from './config'
@@ -17,27 +27,37 @@ import {
 import type { MCResult } from './monte-carlo'
 export type { PlacementConstraint, SurvivalScenario } from './simulation'
 
+/** `eliminated` and `qualified` are terminal; `safe`/`danger` apply mid-event based on the next cut. */
 export type PlayerStatus = 'qualified' | 'safe' | 'danger' | 'eliminated'
 
 export interface PlayerOdds {
   uuid: string
+  /** Monte Carlo probability of finishing in the qualify positions. */
   winProbability: number
+  /** Monte Carlo probability of surviving the next cut. */
   survivalProbability: number
+  /** Deterministic: is a top-`qualifyCount` finish still mathematically possible. */
   canStillWin: boolean
+  /** Deterministic: is survival past the next cut already guaranteed. */
   isSafeAtNextCut: boolean
+  /** Worst current-seed score that clinches survival, and the place it corresponds to (`null` if n/a). */
   clinchScore: number | null
   clinchPlace: number | 'DNF' | null
+  /** Projected points minus the projected cutline — positive = above the line. */
   cutDelta: number
   status: PlayerStatus
+  /** Pre-noise round strength from `getPlayerPower`, surfaced for display/sorting. */
   power: number
 }
 
+/** Point total of the last surviving player at `cut`, given the field already sorted by points. */
 function getCutThreshold(cut: EliminationCut, sorted: SimPlayer[]): number {
   if ('rule' in cut && cut.rule === 'zero_out') return 1
   const keepCount = getKeepCount(cut, sorted.length)
   return sorted[Math.min(keepCount - 1, sorted.length - 1)]?.point ?? 0
 }
 
+/** Collapses the elimination / over / safe flags into a single display status. */
 function deriveStatus(
   bracket: BracketEntry,
   isSafe: boolean,
@@ -50,6 +70,12 @@ function deriveStatus(
   return 'danger'
 }
 
+/**
+ * Odds block for a player in a live event: the deterministic flags plus the
+ * player's slice of the shared `mcResults`. `isSafeAtNextCut` is only asserted
+ * when this seed is actually a cutline (or a zero-out) and the player can still
+ * win — otherwise "safe" isn't a meaningful claim yet.
+ */
 function computeActiveOdds(
   uuid: string,
   alivePlayers: SimPlayer[],
@@ -94,6 +120,7 @@ function computeActiveOdds(
   }
 }
 
+/** Odds block for an event that's over: probabilities collapse to 1 (qualified) or 0. */
 function computeFinishedOdds(
   bracket: BracketEntry,
 ): Pick<
@@ -116,10 +143,12 @@ function computeFinishedOdds(
   }
 }
 
-// Maps every non-eliminated bracket to a SimPlayer, regardless of whether the
-// event is over — callers that care (computePlayerOdds, computeMCResults)
-// check `isOver` themselves; `buildAlivePlayers` below layers that check on
-// top for callers (the scenario functions) that want `null` once it's over.
+/**
+ * Every non-eliminated bracket as a `SimPlayer`, whether or not the event is
+ * over. `computePlayerOdds` / `computeMCResults` check `isOver` themselves;
+ * `buildAlivePlayers` adds that check for the scenario callers, which want
+ * `null` once the event is done.
+ */
 function mapAlivePlayers(ctx: EventContext): SimPlayer[] {
   const playerLookup = new Map(ctx.players.map((p) => [p.uuid, p]))
   return ctx.brackets
@@ -131,6 +160,13 @@ function buildAlivePlayers(ctx: EventContext, isOver: boolean): SimPlayer[] | nu
   return isOver ? null : mapAlivePlayers(ctx)
 }
 
+/**
+ * Runs the Monte Carlo once for the whole field and returns the raw
+ * uuid → `MCResult` map. Returns `{}` for events that are over, empty, or not
+ * yet started. Callers that also need the deterministic flags should use
+ * `computePlayerOdds` and pass this in as `externalMCResults` to avoid
+ * simulating twice.
+ */
 export function computeMCResults(
   ctx: EventContext,
   iterations = 20000,
@@ -142,15 +178,21 @@ export function computeMCResults(
   return runMonteCarlo(alivePlayers, currentRound, effectiveSchedule, qualifyCount, { iterations })
 }
 
-// The single entry point for computing every player's odds. `opts.fixed`
-// pins some players to a known finishing place in `ctx.currentRound` (a
-// client-side "what-if the seed finished like this" recompute) — this used
-// to be a separate top-level function (computeHypotheticalOdds) that
-// re-derived most of this same logic by hand and drifted from it: it never
-// passed the pinned placements into canStillWinDeterministic, so a player
-// mathematically eliminated by their own pinned placement could still show
-// `canStillWin: true`. Folding it in here means both paths share one
-// implementation.
+/**
+ * Computes `PlayerOdds` for every bracket in the event — the one entry point
+ * for per-player odds, real or hypothetical.
+ *
+ * Modes:
+ * - default: run the Monte Carlo (or reuse `opts.externalMCResults`).
+ * - `opts.fixed` (uuid → 1-based place): pin those players in `ctx.currentRound`
+ *   and recompute. The same pins flow into both the Monte Carlo and the
+ *   deterministic flags and the projected-points math, so every field agrees.
+ *
+ * `opts.fixed` is cleaned first: each entry must name a live player and a place
+ * within the field, and no two players may claim the same place (later
+ * duplicates are dropped) — otherwise the MC path and the points path could
+ * resolve a collision differently.
+ */
 export function computePlayerOdds(
   ctx: EventContext,
   opts?: {
@@ -164,11 +206,7 @@ export function computePlayerOdds(
   const playerLookup = new Map(players.map((p) => [p.uuid, p]))
   const alivePlayers = mapAlivePlayers(ctx)
 
-  // Clean + dedupe the pinned placements: each must reference a live player
-  // and a place within the field, and no two players may claim the same
-  // place (previously unvalidated — the MC path and the projected-points
-  // path resolved a collision differently, so cutDelta/status could disagree
-  // with winProbability for the same hypothetical).
+  // Clean + dedupe the pinned placements (see the doc comment above).
   const cleanFixed: Record<string, number> = {}
   if (opts?.fixed && !isOver && currentRound >= 1 && alivePlayers.length > 0) {
     const aliveUuids = new Set(alivePlayers.map((p) => p.uuid))
@@ -268,15 +306,18 @@ export function computePlayerOdds(
   )
 }
 
-// Handle for a shared simulation batch — do not construct directly; produced
-// by buildScenarioRecords and consumed by deriveScenariosFromRecords, so a
-// caller can run the (expensive) batch simulation once per seed and then
-// query it once per player without re-simulating.
+/**
+ * Handle for one shared batch simulation. Produced by `buildScenarioRecords`
+ * and queried by `deriveScenariosFromRecords`, so the expensive batch runs once
+ * per seed and every player's scenarios are mined from the same records. Not
+ * constructed directly.
+ */
 export interface ScenarioRecords {
   records: SharedRecord[]
   players: SimPlayer[]
 }
 
+/** Runs the batch simulation for the current seed. `null` if the event is over or empty. */
 export function buildScenarioRecords(ctx: EventContext): ScenarioRecords | null {
   const { effectiveSchedule, isOver } = getEffectiveSchedule(ctx)
   const alivePlayers = buildAlivePlayers(ctx, isOver)
@@ -285,6 +326,12 @@ export function buildScenarioRecords(ctx: EventContext): ScenarioRecords | null 
   return { records, players: alivePlayers }
 }
 
+/**
+ * Mines one player's scenarios from a prepared batch: "finishing X or better
+ * (or, in `threatMode`, X or worse) leaves you surviving with probability p."
+ * @param options.threatMode look at the outcomes where the target is knocked
+ *   out instead of the ones where they survive.
+ */
 export function deriveScenariosFromRecords(
   targetUuid: string,
   prepared: ScenarioRecords,
@@ -293,10 +340,12 @@ export function deriveScenariosFromRecords(
   return derivePlayerScenarios(targetUuid, prepared.records, prepared.players, options)
 }
 
-// Unlike buildScenarioRecords/deriveScenariosFromRecords, this can't share a
-// batch across players: forcing `targetUuid` to DNF the round means the
-// simulation itself is different per target, so there's nothing to build
-// once and reuse. This one-shot form is the appropriate shape for that.
+/**
+ * Scenarios conditioned on the target DNFing the current round: how the rest of
+ * the field would have to fall for them to survive anyway. One-shot — forcing a
+ * DNF changes the simulation itself, so unlike `buildScenarioRecords` this
+ * can't share a batch across players.
+ */
 export function computeFailureScenarios(
   ctx: EventContext,
   targetUuid: string,

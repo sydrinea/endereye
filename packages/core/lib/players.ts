@@ -1,13 +1,25 @@
+/**
+ * Hydrates an `Event`'s bare player list into `EventPlayer[]` by fetching each
+ * player's season stats — the step that turns API data into something the
+ * engine can simulate.
+ */
 import { fetchUser } from './api/fetch'
 import { Event, EventKind } from './api/types'
 import { EventPlayer } from './context/event'
 
+/** Which `seasonResult.phases[]` index holds the relevant Elo/points for each event kind. */
 const PHASE_INDEX: Record<EventKind, number> = {
   mss: 1,
   lcq: 3,
   worlds: 0,
 }
 
+/**
+ * Fetches every player's stats in parallel (season-scoped, falling back to
+ * season-agnostic for accounts with no season data) and maps each to an
+ * `EventPlayer`: phase Elo, best/avg completion times, and ranked W–L.
+ * `avgTimeMs` is total completion time over completion count (0 if none).
+ */
 export async function enrichEventPlayers(
   raw: Event,
   kind: EventKind,

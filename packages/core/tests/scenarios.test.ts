@@ -1,3 +1,7 @@
+// Covers the scenario miner: invariants that generated scenarios must hold
+// (constraints are actually satisfied by the claimed fraction of outcomes,
+// survival probabilities move by the required margin, supersets are pruned),
+// plus exact-permutation checks of the survival math on small hand-built fields.
 import { describe, it, expect, beforeAll } from 'vitest'
 import {
   runBatchSimulation,

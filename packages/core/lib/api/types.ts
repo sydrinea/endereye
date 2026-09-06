@@ -1,3 +1,11 @@
+/**
+ * Zod schemas and inferred types for the MCSR Ranked API responses.
+ *
+ * These describe the wire format exactly, quirks included (the API spells it
+ * "loses", not "losses"). `fetch.ts` parses raw JSON through these; the rest of
+ * the engine consumes the inferred types. The internal domain model
+ * (`EventContext`, `EventPlayer`) lives in `context/event.ts`, not here.
+ */
 import z from 'zod'
 
 const TimelineEventSchema = z.object({
@@ -6,6 +14,7 @@ const TimelineEventSchema = z.object({
   type: z.string(),
 })
 
+/** Shared identity block that appears inside matches, spectators, and leaderboards. */
 export const UserProfileSchema = z.object({
   uuid: z.string(),
   nickname: z.string(),
@@ -15,6 +24,7 @@ export const UserProfileSchema = z.object({
   country: z.string().nullable(),
 })
 
+/** Season-phase standings. `predPhasePoint` is the projected end-of-phase total; `seasonResult.phasePoint` the current one. */
 export const PhaseLeaderboardSchema = z.object({
   phase: z.object({
     endsAt: z.number().nullable(),
@@ -37,6 +47,11 @@ export const PhaseLeaderboardSchema = z.object({
 
 export type PhaseLeaderboard = z.infer<typeof PhaseLeaderboardSchema>
 
+/**
+ * One ranked match. For event seeds, `completions` is the ordered list of
+ * players who finished (index 0 = fastest) and is what `events/build.ts` scores
+ * from; `result` is the winner of a 1v1 and is not used for events.
+ */
 export const MatchSchema = z.object({
   id: z.number(),
   date: z.number().nullable(),
@@ -94,6 +109,10 @@ const SeasonResultSchema = z.object({
   phases: z.array(PhaseEntrySchema),
 })
 
+/**
+ * A user's ranked stats. `seasonResult.phases[i]` holds per-phase Elo/points;
+ * `enrichEventPlayers` indexes it by event kind and falls back to `last`.
+ */
 export const UserSchema = z.object({
   uuid: z.string(),
   nickname: z.string(),
@@ -121,6 +140,12 @@ const PlayerSchema = z.object({
   country: z.string().nullable(),
 })
 
+/**
+ * One player's progress through an event. `completions[s]` is their result in
+ * seed `s+1` (`null` = didn't complete / already eliminated); `point` is the
+ * running total including `bonus` (season carry-in); `ranks` is the standings
+ * position after each seed.
+ */
 const BracketEntrySchema = z.object({
   ranks: z.array(z.number()), // ranks[i] = leaderboard position after seed i+1
   uuid: z.string(),
@@ -132,6 +157,7 @@ const BracketEntrySchema = z.object({
 
 export type BracketEntry = z.infer<typeof BracketEntrySchema>
 
+/** A fully-built event: current seed, source match ids, per-player brackets, and the field. */
 export const EventSchema = z.object({
   currentRound: z.number(),
   matches: z.array(z.number()),
@@ -141,6 +167,7 @@ export const EventSchema = z.object({
 
 export type Event = z.infer<typeof EventSchema>
 
+/** Event type: last-chance qualifier, championship, or mid-season showdown. Selects the phase index in `enrichEventPlayers`. */
 export type EventKind = 'lcq' | 'worlds' | 'mss'
 
 export const LeaderboardSchema = z.object({

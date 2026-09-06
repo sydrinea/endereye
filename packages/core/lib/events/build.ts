@@ -1,13 +1,37 @@
+/**
+ * Builds a normalized `Event` (per-player brackets, completion + rank history,
+ * cuts applied) from raw seed data. Two entry points:
+ * - `buildEvent` — from `Match[]`, scoring each seed from `match.completions`.
+ * - `buildEventFromApiResponse` — from a pre-scored blob, reading `completions[s]`.
+ *
+ * Both replay the same loop: accumulate points seed by seed, dense-rank the
+ * survivors, and apply any `ELIMINATION_SCHEDULE` cut whose seed was just
+ * played. `computeBonusMap` derives the season carry-in points beforehand.
+ */
 import type { Match, BracketEntry, Event, MatchList, PhaseLeaderboard } from '../api/types'
 import { ELIMINATION_SCHEDULE, MAX_SCORE_PER_SEED } from '../core/config'
 import { applyElimination, toSimPlayer, EMPTY_PLAYER } from '../core/simulation'
 
+/**
+ * Score for finishing `place` of `completionCount`: `round(24 * (N - place + 1) / N)`
+ * with `N` capped at 24, 0 past 24th. Same formula as `getAvailableScores` in
+ * `scoring.ts`, applied one place at a time here.
+ */
 function getScoreForPlace(place: number, completionCount: number): number {
   const N = Math.min(completionCount, MAX_SCORE_PER_SEED)
   if (place > MAX_SCORE_PER_SEED) return 0
   return Math.round((MAX_SCORE_PER_SEED * (N - place + 1)) / N)
 }
 
+/**
+ * Builds an `Event` from the seed matches themselves.
+ *
+ * The field is the union of players across all seeds (late joiners are
+ * backfilled with `null` completions for earlier seeds). Initial rank is by
+ * bonus then Elo; each subsequent seed's rank is by running points, ties broken
+ * by uuid for stability. A player removed by a cut gets `null` for every later
+ * seed and is frozen out of scoring.
+ */
 export function buildEvent(seedMatches: Match[], bonusMap: Map<string, number>): Event {
   const sorted = [...seedMatches].sort((a, b) => a.id - b.id)
 
@@ -133,6 +157,7 @@ export function buildEvent(seedMatches: Match[], bonusMap: Map<string, number>):
   }
 }
 
+/** Pre-scored bracket from the precomputed API blob: `completions[s]` already carries a `score`. */
 export interface ApiBracketEntry {
   uuid: string
   point: number
@@ -141,6 +166,7 @@ export interface ApiBracketEntry {
   completions: Array<{ place: number; score: number } | null>
 }
 
+/** Precomputed event payload — the shape stored/served when scoring has already been done upstream. */
 export interface ApiEventData {
   currentRound: number
   matches: number[]
@@ -148,6 +174,13 @@ export interface ApiEventData {
   players: Array<{ uuid: string; nickname: string }>
 }
 
+/**
+ * Builds an `Event` from a pre-scored `ApiEventData` blob. Same replay as
+ * `buildEvent` — points, dense rank, cuts — but each seed's scores are read
+ * from `bracket.completions[s]` instead of derived, and it only replays the
+ * `currentRound - 1` seeds already played. The field is fixed (no late-joiner
+ * union), and player profiles come back minimal (Elo/country null).
+ */
 export function buildEventFromApiResponse(apiData: ApiEventData): Event {
   const field = apiData.brackets.map((b) => b.uuid)
   const bonusMap = new Map(apiData.brackets.map((b) => [b.uuid, b.bonus]))
@@ -249,6 +282,12 @@ export function buildEventFromApiResponse(apiData: ApiEventData): Event {
   }
 }
 
+/**
+ * Carry-in bonus points for a known field: `floor((phasePoint - cutoff) / 10)`,
+ * where `cutoff` is the lowest qualifying player's phase points (so the last
+ * player in gets 0 and everyone else is scaled above that), never negative.
+ * Sort is by predicted phase points, then Elo rank, to decide the cutoff.
+ */
 export function computeBonusMapForPlayers(
   field: Set<string>,
   leaderboard: PhaseLeaderboard,
@@ -270,6 +309,10 @@ export function computeBonusMapForPlayers(
   )
 }
 
+/**
+ * Same as `computeBonusMapForPlayers`, but takes the field from the players in
+ * the first seed's match rather than an explicit set.
+ */
 export function computeBonusMap(
   seedMatches: MatchList,
   leaderboard: PhaseLeaderboard,

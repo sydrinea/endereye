@@ -1,8 +1,19 @@
+/**
+ * Scenario mining: run one batch simulation of the current seed, recording
+ * every player's finishing place and whether the target survived, then search
+ * that record set for small sets of opponent placements that move the target's
+ * survival probability the most.
+ *
+ * A scenario is a human-readable "for you to survive, these players need to
+ * finish here" (or, in `threatMode`, "you're in trouble if these players
+ * finish here"). Reuses `monte-carlo.ts`'s round primitives.
+ */
 import type { EliminationCut } from './config'
 import { type SimPlayer, calculateLobbyStats, createSimPool } from './player-model'
 import { getAvailableScores } from './scoring'
 import { rankPool, simulateRound, applyPoolElimination } from './monte-carlo'
 
+/** One clause of a scenario. `minPlace` alone = "finishes Nth or better"; `maxPlace` = "no better than". */
 export interface PlacementConstraint {
   uuid: string
   minPlace: number
@@ -11,15 +22,19 @@ export interface PlacementConstraint {
 
 export interface SurvivalScenario {
   constraints: PlacementConstraint[]
+  /** Target's survival probability across the iterations that satisfy `constraints`. */
   survivalProbability: number
+  /** Fraction of the focus set (surviving, or in `threatMode` non-surviving) that satisfy `constraints`. */
   frequency: number
 }
 
+/** One simulated iteration: where everyone finished and who survived the cut. */
 export interface SharedRecord {
   placements: Record<string, number>
   survivedByUuid: Record<string, boolean>
 }
 
+/** Do these recorded placements satisfy every constraint? Missing placement fails the clause. */
 function constraintsMet(
   placements: Record<string, number>,
   constraints: PlacementConstraint[],
@@ -31,11 +46,25 @@ function constraintsMet(
   )
 }
 
+/**
+ * Can several "no better than place N" clauses hold at once? Sorting the bounds
+ * ascending, the i-th tightest must allow at least place `i + 1` (Hall's
+ * condition) — otherwise two players are fighting for the same top slots.
+ */
 function isFeasible(constraints: PlacementConstraint[]): boolean {
   const bounds = constraints.map((c) => c.maxPlace ?? Infinity).sort((a, b) => a - b)
   return bounds.every((t, i) => t >= i + 1)
 }
 
+/**
+ * The miner. For each candidate opponent it picks the placement threshold with
+ * the highest "lift" (how much more often that opponent hits the threshold in
+ * the target's focus outcomes than overall), keeps the `maxDangerous` highest,
+ * then tries every 1-, 2-, and 3-clause combination of them. A combo is kept
+ * only if it covers ≥ 5% of the focus set and shifts survival probability by
+ * ≥ 5 points; combos that are strictly implied by a shorter kept combo are
+ * dropped. Returns up to `maxScenarios`, most frequent first.
+ */
 function buildScenariosFromRecords(
   records: { placements: Record<string, number>; survived: boolean }[],
   opponents: SimPlayer[],
@@ -154,7 +183,7 @@ function buildScenariosFromRecords(
   return deduped.slice(0, maxScenarios)
 }
 
-// Simulate the first round and record each alive player's placement (1-based).
+/** Simulate the current round and record each alive player's 1-based placement into `placements`. */
 function simulateFirstRound(
   pool: ReturnType<typeof createSimPool>,
   round: number,
@@ -172,10 +201,12 @@ function simulateFirstRound(
   }
 }
 
-// Like simulateFirstRound, but `targetIdx` is excluded from the round
-// entirely (a DNF) and placed last — used to answer "what does this player's
-// field look like if they fail to complete this round," which is what a
-// threat/failure scenario is conditioning on.
+/**
+ * Like `simulateFirstRound`, but `targetIdx` sits the round out (DNF, scores
+ * nothing, recorded last) and is restored to alive afterwards. Conditions the
+ * batch on "the target failed this round," which is what a failure/threat
+ * scenario asks about.
+ */
 function simulateFirstRoundForcedDnf(
   pool: ReturnType<typeof createSimPool>,
   round: number,
@@ -197,10 +228,13 @@ function simulateFirstRoundForcedDnf(
   pool.alive[targetIdx] = 1 // restore — target didn't score but is still in the event
 }
 
-// `fixedTargetUuid`, if given, forces that player to DNF the current round
-// (see simulateFirstRoundForcedDnf) for every iteration — used by
-// computeFailureScenarios to condition on "this player fails this round."
-// Otherwise every player's outcome is simulated normally.
+/**
+ * Runs `iterations` simulations from `currentRound` up to (and including) the
+ * next cut seed, returning one `SharedRecord` per iteration. Only the first
+ * round's placements are recorded — the scenarios are always phrased in terms
+ * of "how this seed finishes."
+ * @param fixedTargetUuid if set, that player DNFs the current round every iteration.
+ */
 export function runBatchSimulation(
   players: SimPlayer[],
   currentRound: number,
@@ -242,6 +276,12 @@ export function runBatchSimulation(
   return records
 }
 
+/**
+ * Adapts a shared batch to one target — computes their natural survival rate
+ * (`baseProbability`), picks the focus set, and hands off to the miner. Returns
+ * no scenarios if the focus set is empty (the target always survives, or in
+ * `threatMode` never fails).
+ */
 export function derivePlayerScenarios(
   targetUuid: string,
   records: SharedRecord[],
