@@ -25,6 +25,16 @@
     "test": {
       "dependsOn": ["^build"]
     },
+    "e2e": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "env": ["RUN_SYNC_E2E", "SYNC_E2E_LOOSE_PLAYERS", "SYNC_E2E_KEEP"],
+      "outputs": []
+    },
+    "e2e:cleanup": {
+      "cache": false,
+      "outputs": []
+    },
     "lint": {}
   }
 }

@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "e2e": "RUN_SYNC_E2E=1 vitest run tests/sync-event.e2e.test.ts",
+    "e2e:cleanup": "tsx --env-file .env.local scripts/cleanup-test-sync.ts",
     "gen-career": "tsx --env-file .env.local scripts/gen-career.ts"
   },
   "dependencies": {

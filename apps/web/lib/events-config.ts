@@ -72,6 +72,19 @@ export async function getActiveEvent(): Promise<EventConfig | null> {
   return activeOrFuture[0] ?? null
 }
 
+/**
+ * Resolve a single event by slug, bypassing the published/visible filter that
+ * `getAllEvents` / `getActiveEvent` / `getStrictlyActiveEvent` apply. Callers are
+ * responsible for their own access control (the sync route gates on DASHBOARD_SECRET).
+ * Used to trigger a manual / test sync of a named event regardless of whether it
+ * is currently "active" or published.
+ */
+export async function getEventBySlug(slug: string): Promise<EventConfig | null> {
+  const r2 = await getR2EventsConfig()
+  const found = r2?.find((e) => e.slug === slug)
+  return found ? toEventConfig(found) : null
+}
+
 export async function getStrictlyActiveEvent(): Promise<EventConfig | null> {
   const r2 = await getR2EventsConfig()
   if (!r2 || r2.length === 0) return null
