@@ -2,11 +2,11 @@
  * End-to-end test for the `/api/sync-event` autofetch flow, against the **real**
  * MCSR Ranked API and the **real** R2 bucket.
  *
- * Gated: runs only with `RUN_SYNC_E2E=1` and R2 credentials present (loaded from
- * apps/web/.env.local by the vitest setupFile). It appends a `published:false`
- * `test-sync-lcq11` entry to `config/events.json`, syncs it via the same code the
- * cron uses, checks the written R2 data against the frozen Season 11 LCQ golden
- * files (`lcq/11.*`), then removes every trace.
+ * Gated: runs only with `RUN_SYNC_E2E=1` and R2 + D1 credentials present (loaded
+ * from apps/web/.env.local by the vitest setupFile). It inserts a `published:false`
+ * `test-sync-lcq11` row into D1, syncs it via the same code the cron uses, checks
+ * the written R2 data against the frozen Season 11 LCQ golden files (`lcq/11.*`),
+ * then removes every trace.
  *
  *   npx turbo e2e                        (builds @endereye/core first)
  *   npx turbo e2e:cleanup     (if a run was hard-killed before teardown)

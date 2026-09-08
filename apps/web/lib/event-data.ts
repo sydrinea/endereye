@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import {
   computeHistoricalData,
   computeMCResults,
@@ -46,7 +47,11 @@ function applyRawOverrides(
   return { brackets: patched, overrides }
 }
 
-export async function getEventContext(
+/**
+ * `React.cache`d — the event page calls this directly *and* `getEventViews` calls
+ * it again with the same args; dedup halves the R2 reads for one render.
+ */
+export const getEventContext = cache(async function getEventContext(
   kind: EventKind,
   season: number,
   prefix: string,
@@ -93,7 +98,7 @@ export async function getEventContext(
     qualifyCount: eventData.qualifyCount ?? qualifyCount,
     overrides: overrides && Object.keys(overrides).length > 0 ? overrides : undefined,
   }
-}
+})
 
 export async function getEventViews(
   kind: EventKind,

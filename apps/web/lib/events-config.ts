@@ -1,24 +1,18 @@
 /**
  * The event index — one row per event (official or host-run) in the D1 `events`
- * table, replacing the old `config/events.json` R2 blob. Event *data* (brackets,
- * players, overrides, cached views) still lives in R2, keyed by `prefix`.
+ * table. Event *data* (brackets, players, overrides, cached views) lives in R2,
+ * keyed by `prefix`.
  *
- * Official events are owned by the `official` user (`getOwnerUserId()`); the
- * "official" queries here filter on that. Host events are scoped by handle.
- *
- * `loadOfficialRows` / `loadHostRows` are `React.cache`d so a single render does
- * one D1 fetch no matter how many callers ask. D1 reads are a ~50–150 ms HTTP
- * hop; if that ever bites we can add fetch-level tag caching in `d1Raw`. On a D1
- * error the official path falls back to the R2 config blob, which is still
- * written for exactly this reason (removed in a later cleanup phase).
+ * Official events are the `events` rows whose owner has `handle = 'official'`;
+ * host events are scoped by handle. Row loaders are `React.cache`d — one D1 fetch
+ * per render no matter how many callers ask, no cross-request cache (so
+ * `selectActiveEvent` always sees the current index the moment a row changes).
  */
 import { eq } from 'drizzle-orm'
 import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
 import { fetchCurrentSeason } from '@endereye/core'
-import { getOwnerUserId } from './auth'
 import { db, schema } from './db'
-import { getR2Object } from './r2'
 import type { EventRow } from './schema'
 
 /**
@@ -50,8 +44,6 @@ export interface EventConfig {
   /** Owning user's handle (`official` for official events). */
   handle?: string
 }
-
-const CONFIG_KEY = 'config/events.json'
 
 /** Route id for an event: season, except `worlds` which is keyed by start-date year. */
 export function officialEventId(e: { kind: EventKind; season: number; startDate: Date }): number {
@@ -85,53 +77,14 @@ function rowToConfig(row: EventRow, handle: string): EventConfig {
   }
 }
 
-/** R2 fallback: the old `config/events.json` shape → `EventConfig`. */
-interface R2EventConfig {
-  slug: string
-  label: string
-  kind: EventKind
-  season: number
-  prefix: string
-  startDate: string
-  path: string
-  endpoint?: string
-  qualifyCount?: number
-  noBonus?: boolean
-  published?: boolean
-}
-
-function r2ToConfig(e: R2EventConfig): EventConfig {
-  return {
-    slug: e.slug,
-    label: e.label,
-    kind: e.kind,
-    season: e.season,
-    prefix: e.prefix,
-    startDate: new Date(e.startDate),
-    path: e.path,
-    endpoint: e.endpoint,
-    qualifyCount: e.qualifyCount,
-    noBonus: e.noBonus,
-    published: e.published,
-    handle: 'official',
-  }
-}
-
-async function fallbackOfficial(): Promise<EventConfig[]> {
-  const raw = await getR2Object<R2EventConfig[]>(CONFIG_KEY)
-  return (raw ?? []).map(r2ToConfig)
-}
-
+/** Official event rows in one D1 round-trip (join on `user.handle = 'official'`). */
 const loadOfficialRows = cache(async (): Promise<EventConfig[]> => {
-  const ownerId = await getOwnerUserId()
-  if (!ownerId) return fallbackOfficial()
-  try {
-    const rows = await db.select().from(schema.events).where(eq(schema.events.hostId, ownerId))
-    return rows.map((r) => rowToConfig(r, 'official'))
-  } catch (err) {
-    console.error('[events-config] D1 read failed, falling back to R2 config:', err)
-    return fallbackOfficial()
-  }
+  const rows = await db
+    .select()
+    .from(schema.events)
+    .innerJoin(schema.user, eq(schema.events.hostId, schema.user.id))
+    .where(eq(schema.user.handle, 'official'))
+  return rows.map((r) => rowToConfig(r.events, 'official'))
 })
 
 const hostIdByHandle = cache(async (handle: string): Promise<string | null> => {

@@ -2,7 +2,7 @@
  * Manual safety net for the `/api/sync-event` e2e test: undoes everything the
  * test's setup does, in case a run was hard-killed before `afterAll` could clean
  * up. The test's own `beforeAll` also self-heals, so this is only needed to
- * reclaim R2 space / tidy `config/events.json` after a crash.
+ * remove the D1 test row / reclaim R2 space after a crash.
  *
  *   npx turbo e2e:cleanup        (tsx --env-file .env.local)
  */
