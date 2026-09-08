@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { createContext, useContext, useState, useEffect, useTransition } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { RotateCw, Loader2, FlaskConical } from 'lucide-react'
 import type { PlayerView, EventContext } from '@endereye/core'
@@ -106,20 +106,26 @@ function RefreshButton({ prefix, initialRound }: { prefix: string; initialRound:
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
   const [hasUpdate, setHasUpdate] = useState(false)
+  const warmed = useRef(false)
 
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await fetch(`/api/events/version?prefix=${encodeURIComponent(prefix)}`)
+        const res = await fetch(`/api/events/version?prefix=${encodeURIComponent(prefix)}`, {
+          cache: 'no-store',
+        })
         const { currentRound } = await res.json()
         if (currentRound !== null && currentRound !== initialRound) {
-          await fetch(pathname)
+          if (!warmed.current) {
+            warmed.current = true
+            fetch(pathname) // warm the router cache once so the refresh is instant
+          }
           setHasUpdate(true)
         }
       } catch {}
     }
 
-    const id = setInterval(check, 30_000)
+    const id = setInterval(check, 5_000)
     return () => clearInterval(id)
   }, [prefix, initialRound, pathname])
 
