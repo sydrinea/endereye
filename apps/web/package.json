@@ -10,14 +10,17 @@
     "test": "vitest run",
     "e2e": "RUN_SYNC_E2E=1 vitest run tests/sync-event.e2e.test.ts",
     "e2e:cleanup": "tsx --env-file .env.local scripts/cleanup-test-sync.ts",
-    "gen-career": "tsx --env-file .env.local scripts/gen-career.ts"
+    "gen-career": "tsx --env-file .env.local scripts/gen-career.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1053.0",
     "@endereye/core": "*",
-    "@monaco-editor/react": "^4.7.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
+    "better-auth": "^1.7.3",
+    "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
     "react": "19.2.4",
@@ -25,15 +28,17 @@
     "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@better-auth/cli": "^1.4.22",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20.19.41",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5",
     "tsx": "^4.19.3",
+    "typescript": "^5",
     "vitest": "^4.1.6"
   }
 }
