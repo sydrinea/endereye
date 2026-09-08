@@ -5,18 +5,20 @@ import { useState, useTransition, useEffect } from 'react'
 import { ArrowLeft, Pencil } from 'lucide-react'
 import { getEventDataForOverridesAction, saveOverridesAction } from './actions'
 import type { EventOverrideData } from './actions'
-import type { R2EventConfig } from '../../lib/events-config'
+import type { EventConfig } from '@/lib/events-config'
 import { Label } from '@/components/ui/Label'
-import { Spinner } from '../views/Spinner'
-import { DashboardCard } from './DashboardCard'
+import { Spinner } from '@/app/views/Spinner'
+import { ManageCard } from './ManageCard'
+import { btnCls } from './styles'
 
 interface Props {
-  events: R2EventConfig[]
+  handle: string
+  events: EventConfig[]
 }
 
 type View = { kind: 'seeds' } | { kind: 'editor'; seedIndex: number }
 
-export function OverridesTab({ events }: Props) {
+export function OverridesTab({ handle, events }: Props) {
   const [selectedSlug, setSelectedSlug] = useState(events[events.length - 1]?.slug ?? '')
   const [eventData, setEventData] = useState<EventOverrideData | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -26,15 +28,28 @@ export function OverridesTab({ events }: Props) {
   const selectedEvent = events.find((e) => e.slug === selectedSlug)
 
   useEffect(() => {
-    if (!selectedEvent) return
+    if (!selectedSlug) return
+    let stale = false
     setEventData(null)
     setLoadError(null)
     setView({ kind: 'seeds' })
-    getEventDataForOverridesAction(selectedEvent.prefix).then((result) => {
+    getEventDataForOverridesAction(handle, selectedSlug).then((result) => {
+      if (stale) return
       if ('error' in result) setLoadError(result.error)
       else setEventData(result)
     })
-  }, [selectedSlug, selectedEvent])
+    return () => {
+      stale = true
+    }
+  }, [handle, selectedSlug])
+
+  if (events.length === 0) {
+    return (
+      <p className="text-sm text-zinc-500">
+        No events yet — create one in the Events tab and upload matches first.
+      </p>
+    )
+  }
 
   const seedCount = eventData
     ? Math.max(...eventData.players.map((p) => p.seedScores.length), 0)
@@ -66,7 +81,7 @@ export function OverridesTab({ events }: Props) {
 
       {loadError && <p className="text-red-400 text-sm">{loadError}</p>}
 
-      {!eventData && !loadError && (
+      {selectedSlug && !eventData && !loadError && (
         <div className="flex justify-center py-8">
           <Spinner />
         </div>
@@ -84,6 +99,7 @@ export function OverridesTab({ events }: Props) {
         <SeedEditor
           seedIndex={view.seedIndex}
           eventData={eventData}
+          handle={handle}
           event={selectedEvent}
           isPending={isPending}
           startTransition={startTransition}
@@ -118,7 +134,7 @@ function SeedSelector({
           (playerOverrides) => playerOverrides[String(seedIndex)] !== undefined,
         ).length
         return (
-          <DashboardCard
+          <ManageCard
             key={seedIndex}
             left={
               <div className="flex items-center gap-3">
@@ -150,6 +166,7 @@ function SeedSelector({
 function SeedEditor({
   seedIndex,
   eventData,
+  handle,
   event,
   isPending,
   startTransition,
@@ -158,7 +175,8 @@ function SeedEditor({
 }: {
   seedIndex: number
   eventData: EventOverrideData
-  event: R2EventConfig
+  handle: string
+  event: EventConfig
   isPending: boolean
   startTransition: (fn: () => void) => void
   onBack: () => void
@@ -206,7 +224,7 @@ function SeedEditor({
           next[p.uuid] = { ...(next[p.uuid] ?? {}), [seedKey]: inputVal }
         }
       }
-      const res = await saveOverridesAction(event.prefix, next)
+      const res = await saveOverridesAction(handle, event.slug, next)
       if (res.ok) {
         onSaved(next)
         alert('Overrides saved.')
@@ -275,7 +293,7 @@ function SeedEditor({
         type="button"
         onClick={handleSave}
         disabled={isPending}
-        className="flex items-center justify-center w-20 h-9 bg-accent/15 text-accent rounded-lg px-4 text-sm font-medium hover:bg-accent/20 disabled:opacity-40 transition-colors cursor-pointer"
+        className={`${btnCls} w-20`}
       >
         {isPending ? <Spinner size={18} /> : 'Save'}
       </button>

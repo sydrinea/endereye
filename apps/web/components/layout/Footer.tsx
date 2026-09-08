@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Ranked from '@/components/icons/Ranked'
 import { ExternalLink, Heart } from 'lucide-react'
+import { ManageLink } from './ManageLink'
 
 export function Footer() {
   return (
@@ -26,6 +27,7 @@ export function Footer() {
               <Link href="/finalists" className="hover:text-zinc-300 transition-colors">
                 Finalists
               </Link>
+              <ManageLink />
             </div>
             <div className="group flex items-center gap-1 cursor-pointer w-fit">
               <a
