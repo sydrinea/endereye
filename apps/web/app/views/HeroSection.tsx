@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import Ranked from '@/components/icons/Ranked'
+import { LocalDateTime } from '@/components/ui'
 import { Countdown } from './Countdown'
 import { EventCard } from './EventCard'
-import type { EventConfig } from '../../lib/events-config'
+import type { EventConfig } from '@/lib/events-config'
 
 interface Props {
   event: EventConfig | null
@@ -17,15 +18,6 @@ export function HeroSection({
   hasPastEvents = false,
   isOver = false,
 }: Props) {
-  const dateLabel = event?.startDate.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    hour12: true,
-    timeZone: 'America/New_York',
-  })
-
   return (
     <main className="min-h-[calc(100vh-4rem)] flex flex-col">
       <section className="flex-1 flex flex-col items-center justify-center gap-8 px-6 text-center">
@@ -34,7 +26,9 @@ export function HeroSection({
           <>
             <div className="flex flex-col items-center gap-2">
               <h1 className="font-display text-4xl lg:text-6xl text-zinc-100">{event.label}</h1>
-              <p className="text-zinc-500">{dateLabel}</p>
+              <p className="text-zinc-500">
+                <LocalDateTime date={event.startDate} />
+              </p>
             </div>
             <Countdown target={event.startDate} isOver={isOver} />
           </>
@@ -58,10 +52,10 @@ export function HeroSection({
           )}
           {hasPastEvents && (
             <Link
-              href="/archive"
+              href="/@official"
               className="group inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-400 transition-colors mt-2 underline"
             >
-              View Archives
+              Past Events
             </Link>
           )}
         </section>
