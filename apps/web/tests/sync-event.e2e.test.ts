@@ -172,8 +172,15 @@ describe.skipIf(!RUN)('sync-event e2e', () => {
     })
   })
 
-  it('cache-busts the cached views for the prefix', async () => {
+  it('purges the cached views, then warms the newest seed', async () => {
     expect(await getJson(s3, bucket, sentinelKey)).toBeNull()
+    const warmed = await getJson<unknown[]>(
+      s3,
+      bucket,
+      `cache/views/${TEST_PREFIX}/${goldenEvent.currentRound - 1}.json`,
+    )
+    expect(Array.isArray(warmed)).toBe(true)
+    expect(warmed!.length).toBeGreaterThan(0)
   })
 
   it('route GET rejects a missing / wrong secret with 401', async () => {

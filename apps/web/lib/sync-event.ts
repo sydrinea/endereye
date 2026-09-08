@@ -1,7 +1,8 @@
 import { buildEventFromApiResponse, enrichEventPlayers } from '@endereye/core'
-import type { ApiEventData, EventPlayer } from '@endereye/core'
+import type { ApiEventData, EventPlayer, RawOverrides } from '@endereye/core'
 import type { EventConfig } from './events-config'
 import { getR2Object, putR2Object, deleteR2CachedViews } from './r2'
+import { buildEventContext, warmEventViews } from './event-data'
 
 /** The subset of an event's config that a sync actually reads. */
 type SyncTarget = Pick<EventConfig, 'endpoint' | 'prefix' | 'kind' | 'season' | 'qualifyCount'>
@@ -65,12 +66,29 @@ export async function runEventSync(event: SyncTarget): Promise<SyncResult> {
     }
   }
 
-  await Promise.all([
-    putR2Object(`${event.prefix}.event.json`, { ...built, qualifyCount: event.qualifyCount }),
-    putR2Object(`${event.prefix}.players.json`, updatedPlayers),
-  ])
+  const eventBlob = { ...built, qualifyCount: event.qualifyCount }
 
+  // Publish order matters. The API can restate an earlier match, so every cached
+  // view for the prefix is purged. We then precompute *only the newest seed*
+  // (earlier seeds recompute lazily on first visit) and write event.json last —
+  // `currentRound` (what the client polls) flips only once the seed a viewer
+  // would land on is already warm, so the "new seed" nudge never points at
+  // standings that aren't ready.
+  await putR2Object(`${event.prefix}.players.json`, updatedPlayers)
   await deleteR2CachedViews(event.prefix)
+
+  const rawOverrides = await getR2Object<RawOverrides>(`${event.prefix}.overrides.json`)
+  const ctx = buildEventContext(
+    event.kind,
+    event.season,
+    eventBlob,
+    updatedPlayers,
+    rawOverrides,
+    event.qualifyCount,
+  )
+  await warmEventViews(event.prefix, ctx)
+
+  await putR2Object(`${event.prefix}.event.json`, eventBlob)
 
   return { synced: true, currentRound: data.currentRound }
 }
