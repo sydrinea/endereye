@@ -5,6 +5,8 @@
  * The test event mirrors the real `lcq-s11` config entry (same `kind`, `season`,
  * `endpoint`) but writes to an isolated `test-sync/` R2 prefix and is
  * `published: false` with a far-past `startDate`, so only `?slug=` can resolve it.
+ * It lives as a D1 `events` row owned by the `official` user (the same place the
+ * real events live), added in `beforeAll` and removed in teardown / cleanup.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -15,13 +17,25 @@ import {
   GetObjectCommand,
   PutObjectCommand,
 } from '@aws-sdk/client-s3'
-import type { R2EventConfig } from '../../lib/events-config'
+import { and, eq } from 'drizzle-orm'
+import { db, schema } from '../../lib/db'
 
 export const TEST_SLUG = 'test-sync-lcq11'
 export const TEST_PREFIX = 'test-sync/lcq11'
-export const CONFIG_KEY = 'config/events.json'
 
-export const TEST_EVENT: R2EventConfig = {
+type TestEvent = {
+  slug: string
+  label: string
+  kind: 'lcq'
+  season: number
+  prefix: string
+  endpoint: string
+  path: string
+  published: boolean
+  startDate: string
+}
+
+export const TEST_EVENT: TestEvent = {
   slug: TEST_SLUG,
   label: 'TEST — sync-event e2e',
   kind: 'lcq',
@@ -31,6 +45,39 @@ export const TEST_EVENT: R2EventConfig = {
   path: '/lcq/11',
   published: false,
   startDate: '2020-01-01T00:00:00.000Z',
+}
+
+async function officialUserId(): Promise<string> {
+  const rows = await db
+    .select({ id: schema.user.id })
+    .from(schema.user)
+    .where(eq(schema.user.handle, 'official'))
+    .limit(1)
+  if (!rows[0]) throw new Error('no `official` user in D1 — sign in as the owner first')
+  return rows[0].id
+}
+
+/** Insert the D1 row that lets `GET /api/sync-event?slug=test-sync-lcq11` resolve. */
+export async function insertTestEventRow(): Promise<void> {
+  const hostId = await officialUserId()
+  await db.insert(schema.events).values({
+    id: `test-${TEST_SLUG}`,
+    hostId,
+    slug: TEST_EVENT.slug,
+    label: TEST_EVENT.label,
+    kind: TEST_EVENT.kind,
+    season: TEST_EVENT.season,
+    prefix: TEST_EVENT.prefix,
+    endpoint: TEST_EVENT.endpoint,
+    published: TEST_EVENT.published,
+    startDate: TEST_EVENT.startDate,
+  })
+}
+
+export async function deleteTestEventRow(): Promise<void> {
+  await db
+    .delete(schema.events)
+    .where(and(eq(schema.events.id, `test-${TEST_SLUG}`), eq(schema.events.slug, TEST_SLUG)))
 }
 
 /** The real S11 LCQ event's R2 keys — the frozen golden files to compare against. */
@@ -43,6 +90,9 @@ const REQUIRED_ENV = [
   'R2_SECRET_ACCESS_KEY',
   'R2_BUCKET_NAME',
   'DASHBOARD_SECRET',
+  'CF_ACCOUNT_ID',
+  'D1_DATABASE_ID',
+  'D1_API_TOKEN',
 ] as const
 
 /** Load apps/web/.env.local into process.env (does not overwrite existing vars). */
@@ -139,20 +189,11 @@ export async function deleteKeys(s3: S3Client, bucket: string, keys: string[]): 
 }
 
 /**
- * Remove every trace of a test-sync run: the `test-sync-lcq11` entry in
- * `config/events.json` (re-reading first so concurrent edits survive), and all
- * `test-sync/*` + `cache/views/test-sync/*` objects. Idempotent.
+ * Remove every trace of a test-sync run: the `test-sync-lcq11` D1 row and all
+ * `test-sync/*` + `cache/views/test-sync/*` R2 objects. Idempotent.
  */
 export async function cleanupTestSync(s3: S3Client, bucket: string): Promise<{ removed: number }> {
-  const config = await getJson<R2EventConfig[]>(s3, bucket, CONFIG_KEY)
-  if (config?.some((e) => e.slug === TEST_SLUG)) {
-    await putJson(
-      s3,
-      bucket,
-      CONFIG_KEY,
-      config.filter((e) => e.slug !== TEST_SLUG),
-    )
-  }
+  await deleteTestEventRow()
   const keys = [
     ...(await listKeys(s3, bucket, `${TEST_PREFIX.split('/')[0]}/`)),
     ...(await listKeys(s3, bucket, `cache/views/${TEST_PREFIX.split('/')[0]}/`)),

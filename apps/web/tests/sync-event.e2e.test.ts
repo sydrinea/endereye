@@ -18,12 +18,10 @@ import type { ApiEventData, EventPlayer } from '@endereye/core'
 import { GET } from '@/app/api/sync-event/route'
 import { runEventSync } from '@/lib/sync-event'
 import { getEventContext } from '@/lib/event-data'
-import type { R2EventConfig } from '@/lib/events-config'
 import {
   TEST_SLUG,
   TEST_PREFIX,
   TEST_EVENT,
-  CONFIG_KEY,
   GOLDEN_EVENT_KEY,
   GOLDEN_PLAYERS_KEY,
   hasR2Creds,
@@ -33,6 +31,8 @@ import {
   listKeys,
   deleteKeys,
   cleanupTestSync,
+  insertTestEventRow,
+  deleteTestEventRow,
 } from './support/sync-e2e'
 
 const RUN = process.env.RUN_SYNC_E2E === '1' && hasR2Creds()
@@ -79,22 +79,15 @@ describe.skipIf(!RUN)('sync-event e2e', () => {
   const playersKey = `${TEST_PREFIX}.players.json`
   const sentinelKey = `cache/views/${TEST_PREFIX}/0.json`
 
-  let configSnapshot: R2EventConfig[]
   let goldenEvent: EventJson
   let goldenPlayers: EventPlayer[]
   let goldenPlayerByUuid: Map<string, EventPlayer>
 
   beforeAll(async () => {
-    const config = await getJson<R2EventConfig[]>(s3, bucket, CONFIG_KEY)
-    if (!config) throw new Error('config/events.json not found in R2')
-    if (config.some((e) => e.slug === TEST_SLUG))
-      throw new Error(`Stale "${TEST_SLUG}" in config/events.json — run "npx turbo e2e:cleanup"`)
-    configSnapshot = config
-
     // Clear anything a killed prior run left, so assertion 1 is a real sync, not a dedup-skip.
     await cleanupTestSync(s3, bucket)
 
-    await putJson(s3, bucket, CONFIG_KEY, [...config, TEST_EVENT])
+    await insertTestEventRow()
     await putJson(s3, bucket, sentinelKey, [{ sentinel: true }])
 
     goldenEvent = (await getJson<EventJson>(s3, bucket, GOLDEN_EVENT_KEY))!
@@ -108,8 +101,8 @@ describe.skipIf(!RUN)('sync-event e2e', () => {
       console.warn(
         [
           '',
-          '[sync-event.e2e] SYNC_E2E_KEEP=1 — teardown skipped. R2 left as-is for inspection:',
-          `  ${CONFIG_KEY}   (has a "${TEST_SLUG}" entry appended)`,
+          '[sync-event.e2e] SYNC_E2E_KEEP=1 — teardown skipped. Left as-is for inspection:',
+          `  D1 events row "${TEST_SLUG}" (owned by the official user)`,
           `  ${eventKey}     (compare to ${GOLDEN_EVENT_KEY})`,
           `  ${playersKey}   (compare to ${GOLDEN_PLAYERS_KEY})`,
           `  note: the last test re-adds a dropped player at the END of players.json`,
@@ -119,13 +112,7 @@ describe.skipIf(!RUN)('sync-event e2e', () => {
       )
       return
     }
-    const current = (await getJson<R2EventConfig[]>(s3, bucket, CONFIG_KEY)) ?? configSnapshot
-    await putJson(
-      s3,
-      bucket,
-      CONFIG_KEY,
-      current.filter((e) => e.slug !== TEST_SLUG),
-    )
+    await deleteTestEventRow()
     const keys = [
       ...(await listKeys(s3, bucket, 'test-sync/')),
       ...(await listKeys(s3, bucket, 'cache/views/test-sync/')),
