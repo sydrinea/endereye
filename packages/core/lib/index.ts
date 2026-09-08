@@ -9,7 +9,7 @@
  */
 export { mean } from './utils'
 
-export type { Match, BracketEntry, EventKind } from './api/types'
+export type { Match, BracketEntry, EventKind, User } from './api/types'
 export { fetchCurrentSeason, fetchUser, fetchMatch, fetchPhaseLeaderboard } from './api/fetch'
 
 export { MAX_SCORE_PER_SEED, QUALIFY_COUNT, ELIMINATION_SCHEDULE } from './core/config'

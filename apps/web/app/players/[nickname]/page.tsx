@@ -7,6 +7,7 @@ import { getCareerContext } from '@/lib/career-data'
 import type { CareerEventSlice } from '@/lib/career-data'
 import { CareerHeader } from '@/app/views/CareerHeader'
 import { CareerClient } from '@/app/views/CareerClient'
+import { MinimalPlayerProfile } from '@/app/views/MinimalPlayerProfile'
 import { buildMeta } from '@/lib/og-metadata'
 import { fetchUser, FetchError } from '@endereye/core'
 
@@ -46,12 +47,21 @@ export async function generateMetadata({
 
 export default async function Page({ params }: { params: Promise<{ nickname: string }> }) {
   const { nickname } = await params
-  const { uuid } = await resolveUser(nickname)
-  const career = await getCareerContext(uuid)
-  if (!career) return notFound()
+  const user = await resolveUser(nickname)
+  const career = await getCareerContext(user.uuid)
+
+  if (!career) {
+    // No official-event career — a custom-event-only player. Show a minimal profile.
+    return (
+      <>
+        <MinimalPlayerProfile user={user} />
+        <Footer />
+      </>
+    )
+  }
 
   const slices = await readFile(
-    join(process.cwd(), 'public', 'data', 'career', `${uuid}.json`),
+    join(process.cwd(), 'public', 'data', 'career', `${user.uuid}.json`),
     'utf-8',
   ).then((json) => JSON.parse(json) as CareerEventSlice[])
 
