@@ -75,9 +75,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-zinc-950">
         {/* <AnnouncementBanner
-          variant="warning"
-          label="Heads up: I (the developer) can't monitor Season 11 MSS live — if standings don't update, Season 11 LCQ will be back to normal!"
-          href="/live"
+          variant="info"
+          label="NEW: You can now see how live seed placements affect the odds and placement # guarantees to move on to the next round. Click the test tube to explore."
+          href="/lcq/11/seed/9"
         /> */}
         <div className="flex-1">{children}</div>
         {modal}
