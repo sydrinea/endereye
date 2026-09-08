@@ -12,6 +12,7 @@ import type { Match, EventPlayer, RawOverrides } from '@endereye/core'
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 import { getR2Object, putR2Object, deleteR2Object, deleteR2CachedViews } from '@/lib/r2'
+import { warmLatestSeedViews } from '@/lib/event-data'
 import {
   getHostEventBySlug,
   VALID_KINDS,
@@ -198,12 +199,17 @@ export async function uploadMatchesAction(
     return [...existingPlayers, ...enriched]
   })()
 
+  // event.json (carrying currentRound, which the event page polls) is written
+  // last — after the stale views are purged and the newest seed is re-warmed —
+  // so a viewer never sees a new round pointing at cold standings.
+  const eventBlob = { ...event, qualifyCount }
   await Promise.all([
     putR2Object(`${prefix}.raw.json`, allMatches),
-    putR2Object(`${prefix}.event.json`, { ...event, qualifyCount }),
     putR2Object(`${prefix}.players.json`, updatedPlayers),
   ])
   await deleteR2CachedViews(prefix)
+  await warmLatestSeedViews(prefix, kind, season, eventBlob, updatedPlayers, qualifyCount)
+  await putR2Object(`${prefix}.event.json`, eventBlob)
   revalidateEvent(owned.event)
 
   return { ok: true, matchCount: allMatches.length, newCount: newMatches.length }
@@ -216,7 +222,7 @@ export async function deleteMatchAction(
 ): Promise<Result<{ matchCount: number }>> {
   const owned = await ownEvent(handle, slug)
   if ('error' in owned) return { ok: false, error: owned.error }
-  const { prefix, season, noBonus, qualifyCount } = owned.event
+  const { prefix, season, noBonus, kind, qualifyCount } = owned.event
 
   const existing = await getR2Object<Match[]>(`${prefix}.raw.json`)
   if (!existing) return { ok: false, error: 'No match data found in R2' }
@@ -224,6 +230,7 @@ export async function deleteMatchAction(
 
   if (remaining.length === 0) {
     await Promise.all([putR2Object(`${prefix}.raw.json`, []), deleteR2Object(`${prefix}.event.json`)])
+    await deleteR2CachedViews(prefix)
   } else {
     const bonusMap = noBonus
       ? new Map(remaining[0].players.map((p) => [p.uuid, 0]))
@@ -231,14 +238,14 @@ export async function deleteMatchAction(
           remaining,
           await fetchPhaseLeaderboard(season, season === (await fetchCurrentSeason())),
         )
-    const event = buildEvent(remaining, bonusMap)
-    await Promise.all([
-      putR2Object(`${prefix}.raw.json`, remaining),
-      putR2Object(`${prefix}.event.json`, { ...event, qualifyCount }),
-    ])
+    const eventBlob = { ...buildEvent(remaining, bonusMap), qualifyCount }
+    const players = (await getR2Object<EventPlayer[]>(`${prefix}.players.json`)) ?? []
+    await putR2Object(`${prefix}.raw.json`, remaining)
+    await deleteR2CachedViews(prefix)
+    await warmLatestSeedViews(prefix, kind, season, eventBlob, players, qualifyCount)
+    await putR2Object(`${prefix}.event.json`, eventBlob)
   }
 
-  await deleteR2CachedViews(prefix)
   revalidateEvent(owned.event)
   return { ok: true, matchCount: remaining.length }
 }

@@ -139,16 +139,36 @@ function computeSeedViews(eventData: EventContext, seed: number): PlayerView[] {
 
 /**
  * Precompute and store the standings views for the newest playable seed. Called
- * from the sync path *before* the new `currentRound` is published, so the first
- * viewer after a seed drop hits a warm cache instead of running the sim on the
- * request path (and the client's "new seed" nudge only fires once the standings
- * are ready). Earlier seeds are immutable once played, so a full sync only needs
- * to warm the one seed it just added.
+ * by every write path (autofetch sync, manual match upload/delete) *before* the
+ * new `currentRound` is published, so the first viewer after a seed drop hits a
+ * warm cache instead of running the sim on the request path (and the client's
+ * "new seed" nudge only fires once the standings are ready). Earlier seeds
+ * recompute lazily on first visit.
  */
 export async function warmEventViews(prefix: string, eventData: EventContext): Promise<void> {
   const seed = eventData.currentRound - 1
   if (seed < 1) return
   await putR2Object(`cache/views/${prefix}/${seed}.json`, computeSeedViews(eventData, seed))
+}
+
+/**
+ * `warmEventViews` given a freshly-built event blob + player list (rather than a
+ * ready `EventContext`): pulls the prefix's overrides and assembles the context
+ * in-memory. The shared entry point for the sync route and the manage actions.
+ */
+export async function warmLatestSeedViews(
+  prefix: string,
+  kind: EventKind,
+  season: number,
+  event: { currentRound: number; matches: number[]; brackets: BracketEntry[]; qualifyCount?: number },
+  players: EventPlayer[],
+  qualifyCount?: number,
+): Promise<void> {
+  const rawOverrides = await getR2Object<RawOverrides>(`${prefix}.overrides.json`)
+  await warmEventViews(
+    prefix,
+    buildEventContext(kind, season, event, players, rawOverrides, qualifyCount),
+  )
 }
 
 export async function getEventViews(

@@ -1,8 +1,8 @@
 import { buildEventFromApiResponse, enrichEventPlayers } from '@endereye/core'
-import type { ApiEventData, EventPlayer, RawOverrides } from '@endereye/core'
+import type { ApiEventData, EventPlayer } from '@endereye/core'
 import type { EventConfig } from './events-config'
 import { getR2Object, putR2Object, deleteR2CachedViews } from './r2'
-import { buildEventContext, warmEventViews } from './event-data'
+import { warmLatestSeedViews } from './event-data'
 
 /** The subset of an event's config that a sync actually reads. */
 type SyncTarget = Pick<EventConfig, 'endpoint' | 'prefix' | 'kind' | 'season' | 'qualifyCount'>
@@ -76,18 +76,14 @@ export async function runEventSync(event: SyncTarget): Promise<SyncResult> {
   // standings that aren't ready.
   await putR2Object(`${event.prefix}.players.json`, updatedPlayers)
   await deleteR2CachedViews(event.prefix)
-
-  const rawOverrides = await getR2Object<RawOverrides>(`${event.prefix}.overrides.json`)
-  const ctx = buildEventContext(
+  await warmLatestSeedViews(
+    event.prefix,
     event.kind,
     event.season,
     eventBlob,
     updatedPlayers,
-    rawOverrides,
     event.qualifyCount,
   )
-  await warmEventViews(event.prefix, ctx)
-
   await putR2Object(`${event.prefix}.event.json`, eventBlob)
 
   return { synced: true, currentRound: data.currentRound }
