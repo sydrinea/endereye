@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation'
-import { fetchCurrentSeason } from '@endereye/core'
-import { getHostByHandle, getHostEvents } from '@/lib/events-config'
+import { getHostByHandle, getHostEventsFor, getCurrentSeason } from '@/lib/events-config'
 import { getSessionUser } from '@/lib/auth'
 import { decodeScope } from '@/lib/event-route'
 import { ManageContent } from './ManageContent'
@@ -16,10 +15,10 @@ export default async function ManagePage({ params }: { params: Promise<{ scope: 
   if (!host) notFound()
   if (!sessionUser || sessionUser.handle !== handle) notFound()
 
-  const [events, currentSeason] = await Promise.all([
-    getHostEvents(handle, true),
-    fetchCurrentSeason().catch(() => new Date().getUTCFullYear() % 100),
-  ])
+  const events = await getHostEventsFor(host, true)
+  const currentSeason = await getCurrentSeason().catch(
+    () => Math.max(11, ...events.map((e) => e.season)),
+  )
 
   return (
     <ManageContent

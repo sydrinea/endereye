@@ -14,10 +14,20 @@
  */
 import { eq } from 'drizzle-orm'
 import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
+import { fetchCurrentSeason } from '@endereye/core'
 import { getOwnerUserId } from './auth'
 import { db, schema } from './db'
 import { getR2Object } from './r2'
 import type { EventRow } from './schema'
+
+/**
+ * The current MCSR Ranked season number, cached 6h (it changes ~every 2 months).
+ * Used only for form defaults — callers should `.catch()` with a local fallback.
+ */
+export const getCurrentSeason = unstable_cache(fetchCurrentSeason, ['mcsr-current-season'], {
+  revalidate: 21_600,
+})
 
 export type EventKind = 'lcq' | 'worlds' | 'mss'
 export const VALID_KINDS: readonly EventKind[] = ['lcq', 'worlds', 'mss']
@@ -124,16 +134,26 @@ const loadOfficialRows = cache(async (): Promise<EventConfig[]> => {
   }
 })
 
-const loadHostRows = cache(async (handle: string): Promise<EventConfig[]> => {
-  const host = await db
+const hostIdByHandle = cache(async (handle: string): Promise<string | null> => {
+  const rows = await db
     .select({ id: schema.user.id })
     .from(schema.user)
     .where(eq(schema.user.handle, handle))
     .limit(1)
-  if (!host[0]) return []
-  const rows = await db.select().from(schema.events).where(eq(schema.events.hostId, host[0].id))
-  return rows.map((r) => rowToConfig(r, handle))
+  return rows[0]?.id ?? null
 })
+
+const loadHostRowsById = cache(
+  async (hostId: string, handle: string): Promise<EventConfig[]> => {
+    const rows = await db.select().from(schema.events).where(eq(schema.events.hostId, hostId))
+    return rows.map((r) => rowToConfig(r, handle))
+  },
+)
+
+async function loadHostRows(handle: string): Promise<EventConfig[]> {
+  const id = await hostIdByHandle(handle)
+  return id ? loadHostRowsById(id, handle) : []
+}
 
 function isVisible(e: EventConfig): boolean {
   // "Unlisted" (published === false) is kept off every list — home, archive,
@@ -213,7 +233,7 @@ export interface Host {
   image: string | null
 }
 
-export async function getHostByHandle(handle: string): Promise<Host | null> {
+export const getHostByHandle = cache(async (handle: string): Promise<Host | null> => {
   const rows = await db
     .select({
       id: schema.user.id,
@@ -226,6 +246,10 @@ export async function getHostByHandle(handle: string): Promise<Host | null> {
     .limit(1)
   const h = rows[0]
   return h && h.handle ? { id: h.id, handle: h.handle, name: h.name, image: h.image } : null
+})
+
+function filterHostEvents(events: EventConfig[], includeUnpublished: boolean): EventConfig[] {
+  return includeUnpublished ? events : events.filter(isVisible)
 }
 
 /** All of a host's events. `includeUnpublished` for the host's own manage view. */
@@ -233,8 +257,15 @@ export async function getHostEvents(
   handle: string,
   includeUnpublished = false,
 ): Promise<EventConfig[]> {
-  const events = await loadHostRows(handle)
-  return includeUnpublished ? events : events.filter(isVisible)
+  return filterHostEvents(await loadHostRows(handle), includeUnpublished)
+}
+
+/** Same as `getHostEvents`, but skips the handle→id lookup — pass a resolved `Host`. */
+export async function getHostEventsFor(
+  host: Host,
+  includeUnpublished = false,
+): Promise<EventConfig[]> {
+  return filterHostEvents(await loadHostRowsById(host.id, host.handle), includeUnpublished)
 }
 
 export async function getHostEventBySlug(

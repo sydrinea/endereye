@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { getHostByHandle, getHostEvents } from '@/lib/events-config'
+import { getHostByHandle, getHostEventsFor } from '@/lib/events-config'
 import { decodeScope } from '@/lib/event-route'
 import { getSessionUser } from '@/lib/auth'
 import { HostAvatar } from '@/app/views/HostAvatar'
@@ -39,7 +39,7 @@ export default async function ScopePage({ params }: { params: Promise<{ scope: s
   if (!host) notFound()
 
   const isOwnProfile = sessionUser?.id === host.id
-  const events = (await getHostEvents(handle, isOwnProfile)).sort(
+  const events = (await getHostEventsFor(host, isOwnProfile)).sort(
     (a, b) => b.startDate.getTime() - a.startDate.getTime(),
   )
 
