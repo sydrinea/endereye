@@ -236,7 +236,11 @@ export function EventShell({
           <Breadcrumbs
             items={[
               { label: 'Home', href: '/' },
-              { label: 'Events', href: '/archive' },
+              // Middle crumb is the event's host. Official events (`/lcq/11`) →
+              // `@official`; host events (`/@handle/slug`) → that handle.
+              basePath.startsWith('/@')
+                ? { label: basePath.split('/')[1], href: `/${basePath.split('/')[1]}` }
+                : { label: '@official', href: '/@official' },
               { label: eventLabel },
             ]}
           />
