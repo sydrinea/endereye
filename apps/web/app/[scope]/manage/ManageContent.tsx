@@ -37,7 +37,6 @@ const TABS = [
   { label: 'Overrides', value: 'overrides' },
 ]
 
-
 export function ManageContent({ handle, image, isOfficial, currentSeason, events }: Props) {
   const [tab, setTab] = useState<Tab>('events')
   const router = useRouter()
@@ -305,7 +304,12 @@ function EventForm({
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1 col-span-2">
           <Label>Label</Label>
-          <input className={inputCls} value={label} onChange={(e) => setLabel(e.target.value)} />
+          <input
+            className={inputCls}
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Event Name"
+          />
         </label>
         <label className="flex flex-col gap-1">
           <Label>Slug</Label>
@@ -314,7 +318,7 @@ function EventForm({
             value={slug}
             disabled={isEdit}
             onChange={(e) => setSlug(e.target.value)}
-            placeholder="spring-invitational"
+            placeholder="event-name"
           />
         </label>
         <label className="flex flex-col gap-1">
