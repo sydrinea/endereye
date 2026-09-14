@@ -1,6 +1,12 @@
-// Validates DNF scenario math via brute-force permutation enumeration.
-// Enumerates all 5! = 120 placement permutations for the 5 completers
-// and checks survival for a given target player DNFing.
+// Standalone oracle for the DNF/threat scenario math — run by hand, not wired
+// into the build or the test suite. It brute-forces all 5! = 120 placement
+// permutations of the 5 completers and checks survival for a given target
+// player DNFing, so the sampled results from `scenarios.ts` can be sanity-checked
+// against exact numbers.
+//
+// `scores()` and `qualifiers()` deliberately re-implement the engine's scoring
+// and cut math independently — that redundancy is the point of a cross-check,
+// so don't dedupe them against lib/.
 
 const QUALIFY = 3
 

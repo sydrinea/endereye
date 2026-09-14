@@ -14,12 +14,14 @@ export function NoData({ label, prefix }: { label: string; prefix?: string }) {
     if (!prefix) return
     const check = async () => {
       try {
-        const res = await fetch(`/api/events/version?prefix=${encodeURIComponent(prefix)}`)
+        const res = await fetch(`/api/events/version?prefix=${encodeURIComponent(prefix)}`, {
+          cache: 'no-store',
+        })
         const { currentRound } = await res.json()
         if (currentRound !== null) router.refresh()
       } catch {}
     }
-    const id = setInterval(check, 10_000)
+    const id = setInterval(check, 5_000)
     return () => clearInterval(id)
   }, [prefix, router])
 

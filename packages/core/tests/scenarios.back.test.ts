@@ -1,3 +1,8 @@
+// Backtest for the scenario miner. Replays historical events and, at each cut,
+// checks whether the "you survive if X happens" / "you're threatened if Y
+// happens" paths it generated actually predicted the outcome — reporting hit
+// rate vs. baseline (lift) for threat and survival paths. Writes the summary
+// JSON for the /method page. Skips quietly without R2 credentials.
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'

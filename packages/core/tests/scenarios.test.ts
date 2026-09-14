@@ -1,8 +1,11 @@
+// Covers the scenario miner: invariants that generated scenarios must hold
+// (constraints are actually satisfied by the claimed fraction of outcomes,
+// survival probabilities move by the required margin, supersets are pruned),
+// plus exact-permutation checks of the survival math on small hand-built fields.
 import { describe, it, expect, beforeAll } from 'vitest'
 import {
   runBatchSimulation,
   derivePlayerScenarios,
-  runScenarioAnalysis,
   toSimPlayer,
   EMPTY_PLAYER,
 } from '../lib/core/simulation'
@@ -140,14 +143,8 @@ describe('scenario invariants', { timeout: 120_000 }, () => {
     )
     dnfResults = new Map(
       players.map((p) => {
-        const { baseProbability } = runScenarioAnalysis(
-          p.uuid,
-          players,
-          ROUND,
-          CUT,
-          20_000,
-          true,
-        )
+        const dnfRecords = runBatchSimulation(players, ROUND, CUT, 20_000, p.uuid)
+        const { baseProbability } = derivePlayerScenarios(p.uuid, dnfRecords, players)
         return [p.uuid, { baseProbability }]
       }),
     )
@@ -310,14 +307,8 @@ describe('exact permutation validation', { timeout: 120_000 }, () => {
   it('DNF base probability matches exact enumeration within 3%', () => {
     const target = players[0]
     const completers = players.filter((p) => p.uuid !== target.uuid).map((p) => p.uuid)
-    const { baseProbability } = runScenarioAnalysis(
-      target.uuid,
-      players,
-      ROUND,
-      CUT,
-      20_000,
-      true,
-    )
+    const dnfRecords = runBatchSimulation(players, ROUND, CUT, 20_000, target.uuid)
+    const { baseProbability } = derivePlayerScenarios(target.uuid, dnfRecords, players)
     const { survivalRate } = exactStats(completers, target.uuid, startPts, scores5, QUALIFY)
     expect(
       Math.abs(baseProbability - survivalRate),

@@ -3,7 +3,7 @@ import { Geist_Mono, Raleway, Lora } from 'next/font/google'
 import localFont from 'next/font/local'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
-import { AnnouncementBanner } from '@/components/layout'
+// import { AnnouncementBanner } from '@/components/layout'
 import './globals.css'
 
 const minecraft = localFont({
@@ -74,11 +74,11 @@ export default function RootLayout({
       className={`h-full ${minecraft.variable} ${raleway.variable} ${lora.variable} ${geistMono.variable}`}
     >
       <body className="min-h-full flex flex-col bg-zinc-950">
-        <AnnouncementBanner
-          variant="warning"
-          label="LCQ standings may take up to two minutes to update after the round completes."
-          href="/lcq/11"
-        />
+        {/* <AnnouncementBanner
+          variant="info"
+          label="NEW: You can now see how live seed placements affect the odds and placement # guarantees to move on to the next round. Click the test tube to explore."
+          href="/lcq/11/seed/9"
+        /> */}
         <div className="flex-1">{children}</div>
         {modal}
         {process.env.VERCEL_ENV === 'production' && <Analytics />}

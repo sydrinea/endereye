@@ -1,16 +1,17 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import type { EventConfig } from '../../lib/events-config'
+import { LocalDateTime } from '@/components/ui'
+import type { EventConfig } from '@/lib/events-config'
 
 export function EventCard({ event, upcoming = false }: { event: EventConfig; upcoming?: boolean }) {
-  const dateLabel = upcoming
-    ? event.startDate.toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-        timeZone: 'America/New_York',
-      })
-    : String(event.startDate.getFullYear())
+  const dateLabel = upcoming ? (
+    <LocalDateTime
+      date={event.startDate}
+      options={{ hour: 'numeric', minute: '2-digit' }}
+    />
+  ) : (
+    String(event.startDate.getUTCFullYear())
+  )
 
   const inner = (
     <div

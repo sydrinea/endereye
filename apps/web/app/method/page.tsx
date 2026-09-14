@@ -32,29 +32,44 @@ function brierScoreColor(brierScore: number): string {
   return 'text-must-clutch'
 }
 
+function liftColor(lift: number): string {
+  if (lift >= 0.15) return 'text-safe'
+  if (lift >= 0.08) return 'text-near-safe'
+  if (lift >= 0.03) return 'text-coin-flip'
+  if (lift >= 0) return 'text-at-risk'
+
+  return 'text-must-clutch'
+}
+
 function Stat({
   label,
   value,
   variant = 'stderr',
   pct = false,
   tooltip,
+  format,
 }: {
   label: string
   value: number
   pct?: boolean
-  variant: 'brier' | 'stderr'
+  variant: 'brier' | 'stderr' | 'lift'
   tooltip?: string
+  format?: (value: number) => string
 }) {
   const semanticColor = {
     brier: brierScoreColor,
     stderr: marginOfErrorColor,
+    lift: liftColor,
   }
 
   return (
     <div className="flex flex-col items-center gap-1">
       <span className={`${semanticColor[variant](value)} text-2xl font-bold font-mono`}>
-        {pct ? `±${(value * 100).toFixed(1).toLocaleString()}` : value.toLocaleString()}
-        {pct ? '%' : ''}
+        {format
+          ? format(value)
+          : pct
+            ? `±${(value * 100).toFixed(1).toLocaleString()}%`
+            : value.toLocaleString()}
       </span>
 
       {/* Tooltip Wrapper */}
@@ -174,6 +189,52 @@ export default function MethodPage() {
                 <Mono className="text-zinc-600 text-xs">
                   n = {backtest.metrics.totalPredictions.toLocaleString()} historical predictions
                   analyzed
+                </Mono>
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Model Comparison">
+            <p className="text-zinc-400 text-sm leading-relaxed">
+              Macro-AUC scores each event on its own field only (does the model rank that
+              event&apos;s qualifiers above its non-qualifiers), then averages across events, so a
+              small event and a large one count equally. The confidence interval comes from
+              resampling which of the backtested events are included; it measures how much this lift
+              depends on which events happen to be in the dataset, not on match-outcome randomness
+              within a given event.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 bg-zinc-900 border border-zinc-800 rounded-lg p-6 text-center">
+              <Stat
+                label="AUC Lift vs. Elo"
+                value={backtest.metrics.macroLift}
+                variant="lift"
+                format={(v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`}
+                tooltip="Macro-AUC (model) minus macro-AUC (raw elo baseline), averaged evenly across events. Positive means the model ranks qualifiers better than elo alone."
+              />
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-zinc-200 text-2xl font-bold font-mono">
+                  [{backtest.metrics.ci95[0].toFixed(3)}, {backtest.metrics.ci95[1].toFixed(3)}]
+                </span>
+                <div className="relative flex items-center gap-1.5 group cursor-help">
+                  <span className="text-xs text-zinc-500 uppercase tracking-wide">95% CI</span>
+                  <Info className="w-3.5 h-3.5 text-zinc-500 hover:text-zinc-300 transition-colors" />
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2.5 bg-zinc-800 text-zinc-300 text-xs text-left normal-case tracking-normal rounded-lg border border-zinc-700 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    Event-cluster bootstrap: whole events are resampled with replacement to see how
+                    much the lift moves if a different combination of the same events had been
+                    observed.
+                  </div>
+                </div>
+              </div>
+              <Stat
+                label="p-value"
+                value={backtest.metrics.pValue}
+                variant="stderr"
+                format={(v) => v.toFixed(4)}
+                tooltip="Fraction of bootstrap resamples where the baseline matched or beat the model. Not a classical significance test — it only accounts for uncertainty from which events are in the dataset."
+              />
+              <div className="col-span-full pt-4 border-t border-zinc-800/50">
+                <Mono className="text-zinc-600 text-xs">
+                  n = {backtest.metrics.bootstrapEventCount.toLocaleString()} events
                 </Mono>
               </div>
             </div>

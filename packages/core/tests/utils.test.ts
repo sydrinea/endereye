@@ -1,3 +1,5 @@
+// Unit tests for the utils helpers — rocAuc ranking metric (including ties and
+// empty classes) and mean (including the empty-array guard).
 import { describe, expect, it } from 'vitest'
 import { rocAuc, mean } from '../lib/utils'
 
