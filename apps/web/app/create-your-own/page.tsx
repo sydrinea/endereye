@@ -13,7 +13,7 @@ export default function CreateYourOwn() {
     <Surface variant="centered">
       <div className="text-center space-y-4">
         <div className="flex items-center justify-center gap-2 text-zinc-500 text-sm">
-          <span>Redirecting...</span>
+          <span>Redirecting</span>
           <Loader2 size={14} className="animate-spin" />
         </div>
       </div>
